@@ -98,6 +98,21 @@ await sleep(600);
 check('any key restores the app, including updates made meanwhile', (await appLine(s)) === 'FAKE-TUI count=2 last="p"', await appLine(s));
 check('overlay is gone', !(await s.text()).includes('Press any key to return'));
 
+// Apps like Claude Code turn on the kitty keyboard protocol / modifyOtherKeys,
+// after which terminals send Ctrl+\ as an escape sequence, not 0x1c.
+for (const [name, press] of [['kitty keyboard protocol', '\x1b[92;5u'], ['modifyOtherKeys', '\x1b[27;5;92~']]) {
+  const before = await appLine(s);
+  s.cli.write(press);
+  await sleep(400);
+  check(`hotkey works as ${name} sequence`, (await s.text()).includes('Press any key to return'));
+  s.cli.write('\x1b[92;5:3u'); // key release (kitty event type 3)
+  await sleep(300);
+  check(`  key release doesn't close the overlay`, (await s.text()).includes('Press any key to return'));
+  s.cli.write('\x1b[97u'); // "a" in kitty encoding closes it
+  await sleep(500);
+  check(`  closes and the app got none of those keys`, (await appLine(s)) === before, await appLine(s));
+}
+
 s.cli.write('q');
 await s.exited;
 phone.close();

@@ -3,7 +3,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { createRequire } from 'node:module';
 import { hashPassword, loadConfig, promptHidden, saveConfig } from './config.ts';
 import { RelayLink } from './link.ts';
-import { DEFAULT_HOTKEY, parseHotkey, type Hotkey } from './hotkey.ts';
+import { DEFAULT_HOTKEY, extractHotkey, isNotAKeyPress, parseHotkey, type Hotkey } from './hotkey.ts';
 import { ScreenMirror } from './mirror.ts';
 import { listSessions, registerSession } from './registry.ts';
 import { resolveCommand } from './resolve.ts';
@@ -198,12 +198,13 @@ async function main() {
   stdin.on('data', (chunk: Buffer) => {
     let text = localDecoder.write(chunk);
     if (overlay !== 'off') {
-      // Mouse reports and focus events aren't key presses.
-      if (overlay === 'on' && !/^\x1b\[(<|M|I$|O$)/.test(text)) void closeOverlay();
+      // Mouse reports, focus changes and key releases don't close it.
+      if (overlay === 'on' && !isNotAKeyPress(text)) void closeOverlay();
       return;
     }
-    if (hotkey && text.includes(hotkey.byte)) {
-      text = text.split(hotkey.byte).join('');
+    const hot = extractHotkey(text, hotkey);
+    if (hot.pressed) {
+      text = hot.rest;
       openOverlay();
       if (!text) return;
     }
