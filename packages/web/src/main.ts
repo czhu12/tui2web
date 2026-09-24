@@ -29,8 +29,8 @@ term.loadAddon(fit);
 term.open($('#term'));
 
 const keys = new Keys({ term, send: sendInput, row: keyRow, pad });
-term.onData((data) => sendInput(keys.applyMods(data)));
-term.onBinary((data) => sendInput(data));
+term.onData((data) => sendInput(keys.applyMods(data), isKeyPress(data)));
+term.onBinary((data) => sendInput(data, false)); // X10 mouse reports
 
 // ---- sizing -------------------------------------------------------------------
 //
@@ -177,10 +177,20 @@ function setAgent(connected: boolean) {
   else showNotice('Your computer is offline. Waiting for it to reconnect…');
 }
 
-function sendInput(data: string) {
+/**
+ * Sends input to the terminal. Key presses also claim the PTY size for this
+ * screen; mouse and focus reports don't, or hovering over the terminal would
+ * fight the laptop for the size (see the CLI's matching rule).
+ */
+function sendInput(data: string, claim = true) {
   if (!ws || ws.readyState !== WebSocket.OPEN || ended) return;
-  if (!ownSize) claimSize();
+  if (claim && !ownSize) claimSize();
   ws.send(encoder.encode(data));
+}
+
+/** False for input made up only of mouse reports (SGR / X10) and focus in/out events. */
+function isKeyPress(data: string): boolean {
+  return !/^(?:\x1b\[<[\d;]*[Mm]|\x1b\[M[\s\S]{3}|\x1b\[[IO])+$/.test(data);
 }
 
 function sendControl(msg: ViewerToRelay) {

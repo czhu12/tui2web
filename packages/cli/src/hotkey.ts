@@ -73,7 +73,10 @@ export function extractHotkey(input: string, hotkey: Hotkey): { pressed: boolean
   return { pressed, rest };
 }
 
-/** True for input that isn't a key press: mouse reports, focus changes, key releases. */
+// Mouse reports (SGR and X10), focus in/out, and kitty key-release events.
+const NOT_A_KEY = /^(?:\x1b\[<[\d;]*[Mm]|\x1b\[M[\s\S]{3}|\x1b\[[IO]|\x1b\[[\d:;]*:3u)+$/;
+
+/** True for input made up only of mouse reports, focus changes and key releases. */
 export function isNotAKeyPress(input: string): boolean {
-  return /^\x1b\[(<|M|I$|O$)/.test(input) || /^(\x1b\[[\d:;]*:3u)+$/.test(input);
+  return NOT_A_KEY.test(input);
 }

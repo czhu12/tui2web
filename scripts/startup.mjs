@@ -103,6 +103,23 @@ check('overlay is gone', !(await s.text()).includes('Press any key to return'));
 check('closing restores the app\'s mouse mode', s.screen.modes.mouseTrackingMode === 'vt200', s.screen.modes.mouseTrackingMode);
 check('closing restores the app\'s mouse encoding (SGR 1006)', /\x1b\[\?[\d;]*1006[\d;]*h/.test(s.raw.slice(rawAtOverlay)));
 
+// Screen-size ownership: mouse and focus reports from the laptop's terminal
+// (VS Code sends these as the mouse moves) must not take the size back from
+// the phone, or the size ping-pongs and the app redraws constantly.
+const sizes = [];
+phone.on('message', (d, bin) => { if (!bin) { const m = JSON.parse(d.toString()); if (m.t === 'size') sizes.push(`${m.cols}x${m.rows}`); } });
+phone.send(JSON.stringify({ t: 'resize', cols: 50, rows: 20 }));
+await sleep(500);
+check('phone claims the screen size', sizes.at(-1) === '50x20', sizes.join(','));
+s.cli.write('\x1b[<35;10;5M\x1b[<35;11;5M'); // mouse motion (SGR)
+s.cli.write('\x1b[O');                       // focus out
+s.cli.write('\x1b[I');                       // focus in
+await sleep(600);
+check('laptop mouse/focus events do not take the size back', sizes.at(-1) === '50x20', sizes.join(','));
+s.cli.write('k');
+await sleep(500);
+check('a real laptop key press does', sizes.at(-1) === '90x40', sizes.join(','));
+
 // Apps like Claude Code turn on the kitty keyboard protocol / modifyOtherKeys,
 // after which terminals send Ctrl+\ as an escape sequence, not 0x1c.
 for (const [name, press] of [['kitty keyboard protocol', '\x1b[92;5u'], ['modifyOtherKeys', '\x1b[27;5;92~']]) {

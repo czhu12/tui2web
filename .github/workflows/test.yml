@@ -60,6 +60,12 @@ jobs:
         env:
           TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
 
+      - name: Web viewer in Chrome
+        run: node scripts/viewer.mjs http://localhost:8787
+        env:
+          TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
+          CHROME: /usr/bin/google-chrome
+
       - name: Relay restart
         run: node scripts/restart.mjs
         env:

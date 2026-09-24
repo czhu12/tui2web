@@ -216,7 +216,11 @@ async function main() {
       openOverlay();
       if (!text) return;
     }
-    if (owner !== 'local') {
+    // Only real key presses take the screen size back. Apps like Claude Code
+    // turn on mouse and focus reporting, so moving the mouse over this
+    // terminal or switching windows also sends input; letting that claim the
+    // size makes it ping-pong with the phone (and the app redraws each time).
+    if (owner !== 'local' && !isNotAKeyPress(text)) {
       owner = 'local';
       applySize(local().cols, local().rows);
     }

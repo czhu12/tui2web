@@ -3,6 +3,7 @@ import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket, RawData } from 'ws';
 import type { AgentToRelay, PasswordHash, RelayToAgent, RelayToViewer } from '@tui2web/protocol';
+import { MouseModes } from './mouse.ts';
 
 const { Terminal } = headless;
 const { SerializeAddon } = serialize;
@@ -70,6 +71,7 @@ export class Session {
   // state immediately instead of a blank terminal.
   private term: InstanceType<typeof Terminal>;
   private serializer = new SerializeAddon();
+  private mouse = new MouseModes();
   private expiry: NodeJS.Timeout | null = null;
   private loginFailures: number[] = [];
   private totalLoginFailures = 0;
@@ -140,6 +142,7 @@ export class Session {
 
   private onOutput(data: Buffer) {
     this.term.write(data);
+    this.mouse.observe(data.toString('utf8'));
     for (const v of this.viewers) {
       if (v.pending) v.pending.push(data);
       else v.ws.send(data);
@@ -171,7 +174,8 @@ export class Session {
     // output up to this point; anything newer is queued in `pending`.
     this.term.write('', () => {
       if (!this.viewers.has(viewer)) return;
-      this.sendJson(ws, { t: 'snapshot', data: this.serializer.serialize({ scrollback: SNAPSHOT_SCROLLBACK }) });
+      const screen = this.serializer.serialize({ scrollback: SNAPSHOT_SCROLLBACK }) + this.mouse.restoreSequence();
+      this.sendJson(ws, { t: 'snapshot', data: screen });
       for (const chunk of viewer.pending ?? []) ws.send(chunk);
       viewer.pending = null;
       if (this.ended) this.sendJson(ws, { t: 'exit', code: this.ended.code });
