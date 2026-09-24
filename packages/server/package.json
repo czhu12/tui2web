@@ -1,0 +1,15 @@
+{
+  "name": "@tui2web/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.ts"
+  },
+  "dependencies": {
+    "@tui2web/protocol": "*",
+    "@xterm/addon-serialize": "^0.14.0",
+    "@xterm/headless": "^6.0.0",
+    "ws": "^8.21.3"
+  }
+}

@@ -1,0 +1,173 @@
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --key: #21262d;
+  --key-active: #30363d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --accent: #3fb950;
+  --warn: #d29922;
+  --danger: #f85149;
+  --app-h: 100dvh;
+  --app-top: 0px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior: none;
+}
+
+/* Pinned to the *visual* viewport, so the on-screen keyboard never covers the key row. */
+#app {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--app-top);
+  height: var(--app-h);
+  display: flex;
+  flex-direction: column;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--key);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ---- top bar ---- */
+
+#bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  padding-top: max(6px, env(safe-area-inset-top));
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+
+#bar button { min-width: 36px; height: 32px; padding: 0 8px; }
+#bar button[aria-pressed="true"] { background: var(--key-active); border-color: var(--accent); }
+
+#title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 13px;
+}
+
+.dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--muted); }
+.dot[data-state="live"] { background: var(--accent); }
+.dot[data-state="agent-away"] { background: var(--warn); }
+.dot[data-state="ended"], .dot[data-state="offline"] { background: var(--danger); }
+
+#notice {
+  flex: none;
+  padding: 6px 12px;
+  font-size: 13px;
+  background: #3b2e05;
+  color: #f2cc60;
+  border-bottom: 1px solid var(--border);
+}
+#notice[data-kind="error"] { background: #3d1214; color: #ffa198; }
+
+/* ---- terminal ---- */
+
+/* Scrolls when the PTY is sized for a bigger screen (the laptop typed last). */
+#term-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px;
+}
+#term { width: 100%; height: 100%; }
+
+/* ---- compose ---- */
+
+#compose {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+#compose textarea {
+  width: 100%;
+  resize: none;
+  font-family: inherit;
+  font-size: 16px; /* anything smaller makes iOS zoom in on focus */
+  line-height: 1.4;
+  padding: 8px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.compose-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.compose-actions button { height: 36px; padding: 0 14px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #04260f; font-weight: 600; }
+
+/* ---- extra keys row ---- */
+
+#keys {
+  flex: none;
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  touch-action: pan-x;
+}
+#keys::-webkit-scrollbar { display: none; }
+#keys button { flex: none; min-width: 42px; height: 38px; padding: 0 8px; font-size: 14px; }
+
+/* ---- key pad (keyboard hidden) ---- */
+
+#pad {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+}
+#pad[hidden] { display: none; }
+#pad button { height: 52px; font-size: 17px; }
+#pad button.wide { grid-column: span 2; }
+
+button.active { background: var(--key-active); border-color: var(--accent); color: var(--accent); }
+button:active { background: var(--key-active); }
+
+/* Extra keys only make sense without a hardware keyboard. */
+@media (pointer: fine) {
+  .touch-only { display: none !important; }
+}

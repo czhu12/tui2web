@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#0d1117" />
+    <title>tui2web</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="bar">
+        <span id="status" class="dot" data-state="connecting" aria-hidden="true"></span>
+        <span id="title">Connecting…</span>
+        <button type="button" data-action="font-down" aria-label="Smaller text">A−</button>
+        <button type="button" data-action="font-up" aria-label="Larger text">A+</button>
+        <button type="button" data-action="compose" aria-label="Compose text" aria-pressed="false">✎</button>
+        <button type="button" data-action="mode" class="touch-only" aria-label="Switch to key pad" aria-pressed="false">⌨</button>
+      </header>
+      <div id="notice" hidden></div>
+      <main id="term-wrap"><div id="term"></div></main>
+      <form id="compose" hidden>
+        <textarea name="text" rows="3" placeholder="Type or dictate a message…" autocapitalize="sentences"></textarea>
+        <div class="compose-actions">
+          <button type="button" data-action="insert">Insert</button>
+          <button type="submit" class="primary">Send ⏎</button>
+        </div>
+      </form>
+      <nav id="keys" class="touch-only" aria-label="Extra keys"></nav>
+      <nav id="pad" aria-label="Key pad" hidden></nav>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

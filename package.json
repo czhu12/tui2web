@@ -1,0 +1,25 @@
+{
+  "name": "tui2web-monorepo",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/protocol",
+    "packages/server",
+    "packages/cli",
+    "packages/web"
+  ],
+  "scripts": {
+    "build": "npm run build -w @tui2web/web",
+    "dev:web": "npm run dev -w @tui2web/web",
+    "relay": "node packages/server/src/index.ts",
+    "typecheck": "tsc -p packages/server && tsc -p packages/cli && tsc -p packages/web"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@types/ws": "^8.18.1",
+    "typescript": "5.9"
+  },
+  "allowScripts": {
+    "node-pty@1.1.0": true
+  }
+}

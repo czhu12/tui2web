@@ -1,0 +1,15 @@
+{
+  "name": "tui2web",
+  "version": "0.1.0",
+  "description": "Share a terminal program to your phone via a tui2web.com link",
+  "type": "module",
+  "bin": {
+    "tui2web": "src/index.ts"
+  },
+  "dependencies": {
+    "@tui2web/protocol": "*",
+    "node-pty": "^1.1.0",
+    "qrcode-terminal": "^0.12.0",
+    "ws": "^8.21.3"
+  }
+}
