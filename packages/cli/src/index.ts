@@ -9,8 +9,8 @@ const require = createRequire(import.meta.url);
 const qrcode: { generate(text: string, opts: { small: boolean }, cb: (qr: string) => void): void } = require('qrcode-terminal');
 const { version } = require('../package.json');
 
-// TODO: switch to https://tui2web.com once the relay is deployed.
-const DEFAULT_RELAY = 'http://localhost:8787';
+// TODO: switch to https://tui2web.com once the domain is set up.
+const DEFAULT_RELAY = 'https://tui2web.oncanine.run';
 
 const HELP = `tui2web ${version}: open a terminal program on your phone
 

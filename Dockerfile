@@ -9,6 +9,8 @@ COPY package.json package-lock.json ./
 COPY packages/protocol/package.json packages/protocol/
 COPY packages/web/package.json packages/web/
 RUN npm ci --workspace @tui2web/web --ignore-scripts
+# packages/web/tsconfig.json extends this, and Vite reads it while transforming.
+COPY tsconfig.base.json ./
 COPY packages/protocol packages/protocol
 COPY packages/web packages/web
 RUN npm run build --workspace @tui2web/web
