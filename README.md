@@ -44,6 +44,7 @@ node packages/cli/src/index.ts bash     # in another terminal
 node scripts/e2e.mjs     # end-to-end test against the running relay
 node scripts/restart.mjs # session survives a relay restart (starts its own relay)
 node scripts/startup.mjs  # Enter-to-start screen, Ctrl+\ link hotkey, tui2web ls
+node scripts/alias.mjs    # shell aliases/functions run through $SHELL -ic
 ```
 
 To test on your phone over Wi-Fi, run the relay with `PUBLIC_URL=http://<your-LAN-ip>:8787`.

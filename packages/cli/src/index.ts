@@ -6,6 +6,7 @@ import { RelayLink } from './link.ts';
 import { DEFAULT_HOTKEY, parseHotkey, type Hotkey } from './hotkey.ts';
 import { ScreenMirror } from './mirror.ts';
 import { listSessions, registerSession } from './registry.ts';
+import { resolveCommand } from './resolve.ts';
 import { pty } from './pty.ts';
 
 const require = createRequire(import.meta.url);
@@ -96,7 +97,8 @@ async function main() {
   const hotkeySpec = opts.hotkey ?? config.hotkey ?? DEFAULT_HOTKEY;
   const hotkey = parseHotkey(hotkeySpec);
   if (hotkey === undefined) exit(2, `Unknown hotkey "${hotkeySpec}". Use something like ctrl-\\, ctrl-^, ctrl-g, or none.`);
-  const [file, ...args] = opts.command;
+  const file = opts.command[0];
+  const launch = resolveCommand(opts.command);
   const local = () => ({ cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 });
 
   let term: ReturnType<typeof pty.spawn> | null = null;
@@ -141,7 +143,7 @@ async function main() {
   }
 
   try {
-    term = pty.spawn(file, args, {
+    term = pty.spawn(launch.file, launch.args, {
       name: 'xterm-256color',
       cols: size.cols,
       rows: size.rows,

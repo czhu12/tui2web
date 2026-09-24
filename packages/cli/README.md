@@ -7,6 +7,8 @@ npm install -g tui2web
 tui2web claude --continue
 ```
 
+Shell aliases and functions work too: with `alias claw="claude --dangerously-skip-permissions"`, `tui2web claw` runs through your shell so the alias is found.
+
 tui2web prints a link and a QR code. Open it on your phone to see the same terminal and type into it. Your laptop terminal keeps working normally, and both sides stay in sync.
 
 ## Features
