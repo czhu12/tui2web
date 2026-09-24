@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { CLI_ENTRY, CLI_NODE } from './cli-cmd.mjs';
 const require = createRequire(new URL('../packages/server/package.json', import.meta.url));
 const { Terminal } = require('@xterm/headless');
 const WebSocket = require('ws');
@@ -32,7 +33,7 @@ const until = async (fn, ms = 5000) => {
 function run(extra, command = ['node', 'scripts/fake-tui.mjs']) {
   const s = { raw: '', exit: null };
   s.screen = new Terminal({ cols: 90, rows: 40, allowProposedApi: true });
-  s.cli = pty.spawn(process.execPath, ['packages/cli/src/index.ts', '--relay', RELAY, '--no-qr', ...extra, ...command], {
+  s.cli = pty.spawn(CLI_NODE, [CLI_ENTRY, '--relay', RELAY, '--no-qr', ...extra, ...command], {
     cols: 90, rows: 40, cwd: process.cwd(), env,
   });
   s.cli.onData((d) => { s.raw += d; s.screen.write(d); });
@@ -63,7 +64,7 @@ check('Enter starts the app', await until(() => s.raw.includes('FAKE-TUI count=0
 // ---- 2. tui2web ls from "another terminal" --------------------------------------
 const url = s.raw.match(/http\S+token=[\w-]+/)[0];
 const u = new URL(url);
-const ls = execFileSync(process.execPath, ['packages/cli/src/index.ts', 'ls'], { env }).toString();
+const ls = execFileSync(CLI_NODE, [CLI_ENTRY, 'ls'], { env }).toString();
 check('tui2web ls shows the running session link', ls.includes(url) && ls.includes('fake-tui.mjs'));
 
 // ---- 3. Hotkey overlay ------------------------------------------------------------
@@ -100,7 +101,7 @@ check('overlay is gone', !(await s.text()).includes('Press any key to return'));
 s.cli.write('q');
 await s.exited;
 phone.close();
-const lsAfter = execFileSync(process.execPath, ['packages/cli/src/index.ts', 'ls'], { env }).toString();
+const lsAfter = execFileSync(CLI_NODE, [CLI_ENTRY, 'ls'], { env }).toString();
 check('session disappears from tui2web ls after exit', lsAfter.includes('No tui2web sessions running'));
 
 // ---- 4. Ctrl+C at the link screen cancels ------------------------------------------

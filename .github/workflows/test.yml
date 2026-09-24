@@ -1,0 +1,64 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # The published CLI (dist/) under every Node version we claim to support.
+  # The relay and test harness run on Node 24, since they execute TypeScript
+  # directly via Node's type stripping.
+  cli:
+    name: CLI on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [16, 18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Remember the Node under test
+        run: |
+          echo "TUI2WEB_CLI_NODE=$(which node)" >> "$GITHUB_ENV"
+          node --version
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Build web viewer and CLI
+        run: npm run build && npm run build -w tui2web
+
+      - name: CLI starts
+        run: $TUI2WEB_CLI_NODE packages/cli/dist/index.js --version
+
+      - name: Start relay
+        run: |
+          node packages/server/src/index.ts > relay.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf http://localhost:8787/healthz && break; sleep 0.5; done
+
+      - name: End-to-end
+        run: node scripts/e2e.mjs http://localhost:8787
+        env:
+          TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
+
+      - name: Link screen, hotkey and ls
+        run: node scripts/startup.mjs http://localhost:8787
+        env:
+          TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
+
+      - name: Relay restart
+        run: node scripts/restart.mjs
+        env:
+          TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
+
+      - name: Relay log
+        if: failure()
+        run: cat relay.log

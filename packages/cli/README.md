@@ -52,4 +52,4 @@ The link is also printed again when the session ends.
 
 You can self-host the relay. See the [repository](https://github.com/czhu12/tui2web).
 
-Requires Node.js 20 or newer. Runs on macOS, Linux and Windows (x64 and arm64).
+Requires Node.js 16 or newer. Runs on macOS, Linux and Windows (x64 and arm64).

@@ -3,6 +3,7 @@
 //   node scripts/restart.mjs
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { CLI_ENTRY, CLI_NODE } from './cli-cmd.mjs';
 const require = createRequire(new URL('../packages/server/package.json', import.meta.url));
 const WebSocket = require('ws');
 const { pty } = await import('../packages/cli/src/pty.ts');
@@ -36,7 +37,7 @@ let relay = startRelay();
 await relay.ready;
 
 let cliOut = '';
-const cli = pty.spawn(process.execPath, ['packages/cli/src/index.ts', '--relay', RELAY, '--no-qr', '--no-wait', 'bash', '--noprofile', '--norc'], {
+const cli = pty.spawn(CLI_NODE, [CLI_ENTRY, '--relay', RELAY, '--no-qr', '--no-wait', 'bash', '--noprofile', '--norc'], {
   cols: 100, rows: 30, cwd: process.cwd(), env: { ...process.env, PS1: '$ ' },
 });
 cli.onData((d) => (cliOut += d));
