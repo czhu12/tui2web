@@ -36,7 +36,7 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('X-Frame-Options', 'DENY');
 
   if (url.pathname === '/') {
-    return send(res, 200, 'text/html; charset=utf-8', messagePage('tui2web', 'Run `tui2web <command>` on your computer to get a session link.'));
+    return serveStatic(res, '/landing.html');
   }
   if (url.pathname === '/healthz') {
     const mem = process.memoryUsage();
