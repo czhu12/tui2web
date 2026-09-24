@@ -506,39 +506,39 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
         <h2>FAQ</h2>
         <div class="faq">
           <details>
-            <summary>How do I use Claude Code from my phone?</summary>
+            <summary><span>How do I use Claude Code from my phone?</span></summary>
             <p>Install tui2web with <code>npm install -g tui2web</code>, then start Claude Code through it: <code>tui2web claude</code>. It prints a private link and a QR code. Scan it with your phone and you get the same live Claude Code session in your phone's browser, with extra keys like Esc, Tab and ⇧Tab.</p>
           </details>
           <details>
-            <summary>Do I need SSH, a VPN or port forwarding?</summary>
+            <summary><span>Do I need SSH, a VPN or port forwarding?</span></summary>
             <p>No. Your computer makes an outbound connection to the relay, like ngrok does, so it works from home Wi-Fi, office networks and behind NAT without opening any ports or installing an SSH server.</p>
           </details>
           <details>
-            <summary>How is this different from SSH-ing in from my phone?</summary>
+            <summary><span>How is this different from SSH-ing in from my phone?</span></summary>
             <p>With SSH you start a new, separate shell. tui2web shares the session that's already running on your computer, and both screens stay in sync. You can start Claude Code at your desk, carry on from your phone, and come back to find your laptop terminal exactly where the conversation is. It also works in any mobile browser, with no SSH app or keys.</p>
           </details>
           <details>
-            <summary>Which apps does it work with?</summary>
+            <summary><span>Which apps does it work with?</span></summary>
             <p>Anything that runs in a terminal: Claude Code, opencode, aider, Codex CLI, vim, htop, or a plain shell. Full-screen apps work too. Press Ctrl+\ at any time to bring the link back.</p>
           </details>
           <details>
-            <summary>Is it secure?</summary>
+            <summary><span>Is it secure?</span></summary>
             <p>Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, run your own relay (see below).</p>
           </details>
           <details>
-            <summary>I don't trust your relay. Can I run my own?</summary>
+            <summary><span>I don't trust your relay. Can I run my own?</span></summary>
             <p>Yes, and it's one command. <code>tui2web relay</code> starts a relay on your computer. To reach it from your phone, put it behind a Cloudflare Tunnel (<code>cloudflared tunnel --url http://localhost:8787</code>), or use Tailscale if you don't want anyone in the middle. Then run <code>tui2web --relay https://your-relay claude</code>. The <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-hosting guide</a> covers quick tunnels, your own domain and Docker.</p>
           </details>
           <details>
-            <summary>What if I want it <em>really</em> secure?</summary>
+            <summary><span>What if I want it <em>really</em> secure?</span></summary>
             <p>Run your own relay and reach it over <a href="https://tailscale.com">Tailscale</a>. Install Tailscale on your computer and your phone, run <code>tui2web relay</code>, then <code>tui2web --relay http://your-computer:8787 claude</code>. Traffic between your phone and your computer is encrypted end to end with WireGuard, and nothing is exposed to the internet: no public relay, no Cloudflare, no open ports. Tailscale's servers only help your devices find each other and never see your terminal. Add <code>tui2web set-password</code> for a second layer. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md#most-private-tailscale">self-hosting guide</a>.</p>
           </details>
           <details>
-            <summary>What happens if my connection drops?</summary>
+            <summary><span>What happens if my connection drops?</span></summary>
             <p>The session reconnects on its own and the screen comes back as it was, including when the relay restarts. The app itself runs on your computer, so the computer needs to stay on and awake.</p>
           </details>
           <details>
-            <summary>Is tui2web free?</summary>
+            <summary><span>Is tui2web free?</span></summary>
             <p>Yes. tui2web is free and open source under the MIT license. The code for the CLI, the relay and the web viewer is on GitHub.</p>
           </details>
         </div>
