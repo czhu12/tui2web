@@ -193,8 +193,10 @@ export function startRelay(opts: RelayOptions): Relay {
   // ---- helpers ----------------------------------------------------------------------
 
   function send(res: ServerResponse, status: number, type: string, body: string | Buffer) {
-    res.writeHead(status, { 'Content-Type': type });
-    res.end(body);
+    // Content-Length lets crawlers (e.g. link-preview bots) size the image
+    // without downloading it; HEAD gets the headers only.
+    res.writeHead(status, { 'Content-Type': type, 'Content-Length': Buffer.byteLength(body) });
+    res.end(res.req.method === 'HEAD' ? undefined : body);
   }
 
   function redirect(res: ServerResponse, location: string) {
