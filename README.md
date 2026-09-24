@@ -20,7 +20,7 @@ laptop: tui2web CLI ──WSS (outbound)──► relay (packages/server) ◄─
 
 - **CLI** (`packages/cli`) runs the command in a pseudo-terminal, mirrors it in your local terminal, and streams it to the relay. The laptop dials out, so there are no open ports and it works behind NAT. If the network drops, it reconnects and replays missed output.
 - **Relay** (`packages/server`) creates sessions, handles auth, and keeps a headless xterm per session, so a phone that connects late sees the current screen straight away.
-- **Viewer** (`packages/web`) is xterm.js plus a mobile key row (Esc, Tab, sticky Ctrl/Alt, arrows, ⇧Tab, ^C…). It also has a keys-only pad mode that hides the phone keyboard, and a compose box for dictating or pasting prompts.
+- **Viewer** (`packages/web`) is xterm.js plus a mobile key row (Esc, Tab, sticky Ctrl/Alt, arrows, ⇧Tab, ^C…). It also has a keys-only pad mode that hides the phone keyboard.
 - **Protocol** (`packages/protocol`) contains the shared message types.
 
 The PTY's size follows whoever typed last (the laptop or the phone), like tmux's `window-size latest`.

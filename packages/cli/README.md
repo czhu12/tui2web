@@ -12,7 +12,7 @@ tui2web prints a link and a QR code. Open it on your phone to see the same termi
 ## Features
 
 - **Works anywhere.** Your computer dials out to the relay, so it works behind NAT or firewalls with no port forwarding.
-- **Built for phones.** There's a key row for Esc, Tab, Ctrl, arrows, ⇧Tab and ^C. A keys-only pad hides the phone keyboard for answering prompts, and a compose box handles dictating or pasting longer messages.
+- **Built for phones.** There's a key row for Esc, Tab, Ctrl, arrows, ⇧Tab and ^C. A keys-only pad hides the phone keyboard for answering prompts.
 - **Survives network drops and relay restarts.** The session reconnects and repaints itself, and your link keeps working.
 
 ## Security

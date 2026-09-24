@@ -10,8 +10,6 @@ const statusDot = $('#status');
 const titleEl = $('#title');
 const notice = $('#notice');
 const wrap = $('#term-wrap');
-const composeForm = $<HTMLFormElement>('#compose');
-const composeText = composeForm.querySelector('textarea')!;
 const keyRow = $('#keys');
 const pad = $('#pad');
 const isTouch = matchMedia('(pointer: coarse)').matches;
@@ -243,37 +241,11 @@ function setPadMode(on: boolean) {
   onViewportChange();
 }
 
-function setCompose(open: boolean) {
-  composeForm.hidden = !open;
-  $('[data-action="compose"]').setAttribute('aria-pressed', String(open));
-  if (open) composeText.focus();
-  else if (!padMode) term.focus();
-  onViewportChange();
-}
-
-function submitCompose(withEnter: boolean) {
-  const text = composeText.value;
-  if (!text) return;
-  // paste() honours bracketed-paste mode, so multi-line text arrives as one
-  // message instead of being submitted line by line.
-  term.paste(text);
-  if (withEnter) sendInput('\r');
-  composeText.value = '';
-  composeText.focus();
-}
-
-composeForm.addEventListener('submit', (e) => {
-  e.preventDefault();
-  submitCompose(true);
-});
-
 document.addEventListener('click', (e) => {
   const action = (e.target as HTMLElement).closest<HTMLElement>('[data-action]')?.dataset.action;
   if (action === 'font-down') setFontSize(term.options.fontSize! - 1);
   else if (action === 'font-up') setFontSize(term.options.fontSize! + 1);
-  else if (action === 'compose') setCompose(composeForm.hidden);
   else if (action === 'mode') setPadMode(!padMode);
-  else if (action === 'insert') submitCompose(false);
 });
 
 // Tapping the terminal while in pad mode shouldn't pop the keyboard back up.

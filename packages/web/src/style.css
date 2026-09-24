@@ -104,33 +104,6 @@ button {
 }
 #term { width: 100%; height: 100%; }
 
-/* ---- compose ---- */
-
-#compose {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px;
-  background: var(--panel);
-  border-top: 1px solid var(--border);
-}
-#compose textarea {
-  width: 100%;
-  resize: none;
-  font-family: inherit;
-  font-size: 16px; /* anything smaller makes iOS zoom in on focus */
-  line-height: 1.4;
-  padding: 8px;
-  color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-.compose-actions { display: flex; gap: 6px; justify-content: flex-end; }
-.compose-actions button { height: 36px; padding: 0 14px; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #04260f; font-weight: 600; }
-
 /* ---- extra keys row ---- */
 
 #keys {
