@@ -201,10 +201,15 @@
       .phone-bar { display: flex; align-items: center; gap: 7px; padding: 30px 12px 8px; background: var(--bg-raised); border-bottom: 1px solid var(--border); font: 11px var(--mono); }
       .phone-bar .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
       /* Pushed to the bottom, like Claude Code's input box sitting above the key row. */
-      .phone-term { margin: auto 0 0; padding: 10px; font: 10px/1.45 var(--mono); white-space: pre-wrap; overflow: hidden; }
-      .phone-term .c { color: #d2a8ff; }
-      .phone-term .d { color: var(--muted); }
-      .phone-term .g { color: var(--accent); }
+      /* Bottom-aligned like a terminal; if the text is too tall it's clipped at the top, as if scrolled. */
+      .phone-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 10px 10px 6px; font: 10px/1.45 var(--mono); }
+      .phone-term { flex: none; margin: 0 0 8px; font: inherit; white-space: pre-wrap; }
+      .phone-body .c { color: #d2a8ff; }
+      .phone-body .d { color: var(--muted); }
+      .phone-body .g { color: var(--accent); }
+      .phone-input { flex: none; border-top: 1px solid #484f58; border-bottom: 1px solid #484f58; padding: 5px 2px; white-space: nowrap; overflow: hidden; }
+      .phone-input .cursor { color: var(--text); }
+      .phone-status { flex: none; padding: 4px 2px 0; color: #d2a8ff; font-size: 9px; }
       .phone-keys { display: flex; gap: 4px; padding: 7px; background: var(--bg-raised); border-top: 1px solid var(--border); overflow: hidden; }
       .phone-keys span { flex: none; font: 10px var(--sans); padding: 6px 7px; border: 1px solid var(--border); border-radius: 5px; background: #21262d; }
       .caption { text-align: center; color: var(--muted); font-size: 14px; margin: 0 0 8px; }
@@ -355,21 +360,38 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           <div class="phone" role="img" aria-label="Phone showing the same Claude Code session with an extra keys row">
             <div class="phone-screen">
               <div class="phone-bar"><span class="dot"></span>claude --continue</div>
-<pre class="phone-term"><span class="c">✻</span> Welcome back!
+<div class="phone-body">
+<pre class="phone-term"><span class="d">&gt;</span> fix the flaky upload test
 
-<span class="d">&gt;</span> add a /health endpoint
+<span class="c">●</span> Fixed: it awaited the wrong
+  promise. 18 passed.
 
-<span class="c">●</span> I'll add a health check route.
+<span class="d">&gt;</span> the login page is slow on
+  mobile, can you look into it?
 
-  <span class="g">Update</span>(src/server.ts)
-  <span class="d">⎿ Added 6 lines</span>
+<span class="c">●</span> I'll profile the login route
+  first.
 
-<span class="c">●</span> Done. GET /health now
-  returns 200 with uptime.
+  <span class="g">Read</span>(src/routes/login.ts)
+  <span class="d">⎿ Read 84 lines</span>
 
-<span class="d">──────────────────────────</span>
-<span class="d">&gt;</span> now write a test for it█
-<span class="d">──────────────────────────</span></pre>
+  <span class="g">Bash</span>(npm run bench -- login)
+  <span class="d">⎿ p95 1,840ms</span>
+
+<span class="c">●</span> Each request looks the session
+  up in the database. I'll cache
+  it in memory.
+
+  <span class="g">Update</span>(src/routes/login.ts)
+  <span class="d">⎿ Added 12 lines, removed 3</span>
+
+  <span class="g">Bash</span>(npm test)
+  <span class="d">⎿ 42 passed</span>
+
+<span class="c">●</span> Done. p95 is down to 210ms.</pre>
+                <div class="phone-input"><span class="d">&gt;</span> ship it and open a PR<span class="cursor">█</span></div>
+                <div class="phone-status">⏵⏵ accept edits on</div>
+              </div>
               <div class="phone-keys" aria-hidden="true"><span>Esc</span><span>Tab</span><span>Ctrl</span><span>↑</span><span>↓</span><span>⇧Tab</span><span>^C</span></div>
             </div>
           </div>

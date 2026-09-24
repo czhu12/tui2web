@@ -36,7 +36,10 @@
   .screen { height: 100%; border-radius: 34px; overflow: hidden; background: #0d1117; display: flex; flex-direction: column; }
   .bar { display: flex; align-items: center; gap: 8px; padding: 34px 14px 10px; background: #161b22; border-bottom: 1px solid #30363d; font: 13px ui-monospace, Menlo, monospace; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; }
-  pre { margin-top: auto; padding: 12px; font: 12.5px/1.5 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre-wrap; }
+  .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px 12px 8px; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
+  pre { flex: none; margin: 0 0 10px; font: inherit; white-space: pre-wrap; }
+  .input { flex: none; border-top: 1px solid #484f58; border-bottom: 1px solid #484f58; padding: 6px 2px; white-space: nowrap; overflow: hidden; }
+  .status { flex: none; padding: 5px 2px 0; color: #d2a8ff; font-size: 11px; }
   .c { color: #d2a8ff; } .d { color: #8b949e; } .g { color: #3fb950; }
   .keys { display: flex; gap: 4px; padding: 9px 8px; background: #161b22; border-top: 1px solid #30363d; }
   .keys span { font-size: 11.5px; padding: 7px 6px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; }
@@ -55,19 +58,27 @@
   <div class="phone">
     <div class="screen">
       <div class="bar"><span class="dot"></span>claude</div>
-<pre><span class="d">&gt;</span> add a /health endpoint
+<div class="body">
+<pre><span class="d">&gt;</span> the login page is slow on
+  mobile, can you look into it?
 
-<span class="c">●</span> I'll add a health check route.
+  <span class="g">Bash</span>(npm run bench -- login)
+  <span class="d">⎿ p95 1,840ms</span>
 
-  <span class="g">Update</span>(src/server.ts)
-  <span class="d">⎿ Added 6 lines</span>
+<span class="c">●</span> Each request looks the session
+  up in the database. I'll cache
+  it in memory.
 
-<span class="c">●</span> Done. GET /health now
-  returns 200 with uptime.
+  <span class="g">Update</span>(src/routes/login.ts)
+  <span class="d">⎿ Added 12 lines, removed 3</span>
 
-<span class="d">──────────────────────────────</span>
-<span class="d">&gt;</span> now write a test for it█
-<span class="d">──────────────────────────────</span></pre>
+  <span class="g">Bash</span>(npm test)
+  <span class="d">⎿ 42 passed</span>
+
+<span class="c">●</span> Done. p95 is down to 210ms.</pre>
+        <div class="input"><span class="d">&gt;</span> ship it and open a PR█</div>
+        <div class="status">⏵⏵ accept edits on</div>
+      </div>
       <div class="keys"><span>Esc</span><span>Tab</span><span>Ctrl</span><span>↑</span><span>↓</span><span>⇧Tab</span><span>^C</span></div>
     </div>
   </div>
