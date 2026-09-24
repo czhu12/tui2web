@@ -89,7 +89,15 @@
       "name": "Is it secure?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, you can self-host the relay with one Docker image."
+        "text": "Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, run your own relay (see below)."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "I don't trust your relay. Can I run my own?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes, and it's one command. tui2web relay starts a relay on your computer. To reach it from your phone, put it behind a Cloudflare Tunnel (cloudflared tunnel --url http://localhost:8787), or use Tailscale if you don't want anyone in the middle. Then run tui2web --relay https://your-relay claude. The self-hosting guide covers quick tunnels, your own domain and Docker."
       }
     },
     {
@@ -442,7 +450,7 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           </div>
           <div class="card warn">
             <h3>Treat the link like a password</h3>
-            <p>Anyone with the link can type into your terminal, and a coding agent can run commands on your computer. Don't share the link, and end the session when you're done. Traffic is encrypted on the way to and from the relay, but the relay itself can see your session's contents. If that matters for your work, <a href="https://github.com/czhu12/tui2web#running-the-relay-in-docker">self-host the relay</a>.</p>
+            <p>Anyone with the link can type into your terminal, and a coding agent can run commands on your computer. Don't share the link, and end the session when you're done. Traffic is encrypted on the way to and from the relay, but the relay itself can see your session's contents. If that matters for your work, <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-host the relay</a>.</p>
           </div>
         </div>
       </section>
@@ -460,6 +468,7 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           <tr><td><code>tui2web set-password</code></td><td>Set a password so you can open sessions without the link.</td></tr>
           <tr><td><code>--no-password</code></td><td>For this session, only accept the link's token.</td></tr>
           <tr><td><code>--relay &lt;url&gt;</code></td><td>Use your own relay (or set <code>TUI2WEB_RELAY</code>).</td></tr>
+          <tr><td><code>tui2web relay</code></td><td>Run your own relay. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-hosting guide</a>.</td></tr>
         </table>
       </section>
 
@@ -484,7 +493,11 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           </details>
           <details>
             <summary>Is it secure?</summary>
-            <p>Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, you can self-host the relay with one Docker image.</p>
+            <p>Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, run your own relay (see below).</p>
+          </details>
+          <details>
+            <summary>I don't trust your relay. Can I run my own?</summary>
+            <p>Yes, and it's one command. <code>tui2web relay</code> starts a relay on your computer. To reach it from your phone, put it behind a Cloudflare Tunnel (<code>cloudflared tunnel --url http://localhost:8787</code>), or use Tailscale if you don't want anyone in the middle. Then run <code>tui2web --relay https://your-relay claude</code>. The <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-hosting guide</a> covers quick tunnels, your own domain and Docker.</p>
           </details>
           <details>
             <summary>What happens if my connection drops?</summary>

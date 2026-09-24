@@ -67,5 +67,7 @@ export type RelayToViewer =
   | { t: 'exit'; code: number };
 
 /** WebSocket close codes the viewer acts on. */
-export const CLOSE_UNAUTHORIZED = 4401;
-export const CLOSE_NOT_FOUND = 4404;
+export type CloseUnauthorized = 4401;
+export type CloseNotFound = 4404;
+export const CLOSE_UNAUTHORIZED: CloseUnauthorized = 4401;
+export const CLOSE_NOT_FOUND: CloseNotFound = 4404;

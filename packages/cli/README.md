@@ -52,6 +52,8 @@ Once the program is running, there are two ways to get the link again:
 
 The link is also printed again when the session ends.
 
-You can self-host the relay. See the [repository](https://github.com/czhu12/tui2web).
+## Your own relay
+
+Don't want to go through the public relay? Run your own with `tui2web relay`, put it behind a Cloudflare Tunnel or Tailscale, and use `tui2web --relay <url>`. See the [self-hosting guide](https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md).
 
 Requires Node.js 16 or newer. Runs on macOS, Linux and Windows (x64 and arm64).

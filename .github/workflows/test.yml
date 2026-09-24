@@ -39,9 +39,10 @@ jobs:
       - name: CLI starts
         run: $TUI2WEB_CLI_NODE packages/cli/dist/index.js --version
 
+      # The relay bundled in the CLI (`tui2web relay`), on the Node under test.
       - name: Start relay
         run: |
-          node packages/server/src/index.ts > relay.log 2>&1 &
+          $TUI2WEB_CLI_NODE packages/cli/dist/index.js relay --port 8787 > relay.log 2>&1 &
           for i in $(seq 1 20); do curl -sf http://localhost:8787/healthz && break; sleep 0.5; done
 
       - name: End-to-end

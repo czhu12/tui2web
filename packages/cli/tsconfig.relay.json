@@ -1,0 +1,13 @@
+{
+  "extends": "../server/tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": "../server/src",
+    "outDir": "dist/relay",
+    "target": "ES2022"
+  },
+  "include": ["../server/src"],
+  "exclude": ["../server/src/index.ts"]
+}

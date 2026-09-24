@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { StringDecoder } from 'node:string_decoder';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { hashPassword, loadConfig, promptHidden, saveConfig } from './config.ts';
 import { RelayLink } from './link.ts';
 import { DEFAULT_HOTKEY, extractHotkey, isNotAKeyPress, parseHotkey, type Hotkey } from './hotkey.ts';
@@ -21,6 +23,7 @@ const HELP = `tui2web ${version}: open a terminal program on your phone
 Usage:
   tui2web [options] <command> [args...]
   tui2web ls                 Show links for your running sessions
+  tui2web relay [options]    Run your own relay (see: tui2web relay --help)
   tui2web set-password       Set the password for opening sessions without the link
   tui2web clear-password     Remove the saved password
 
@@ -83,6 +86,7 @@ async function main() {
   const argv = process.argv.slice(2);
   if (argv[0] === 'set-password') return setPassword();
   if (argv[0] === 'ls') return listCommand();
+  if (argv[0] === 'relay') return relayCommand(argv.slice(1));
   if (argv[0] === 'clear-password') {
     const { password: _, ...rest } = loadConfig();
     saveConfig(rest);
@@ -271,6 +275,72 @@ function bannerLines(url: string, qr: boolean, passwordEnabled: boolean, hotkey:
   if (hotkey) lines.push(dim(`Press ${hotkey.label} any time to show this link again.`));
   lines.push('');
   return lines;
+}
+
+const RELAY_HELP = `tui2web relay: run your own relay server
+
+Usage:
+  tui2web relay [--port 8787] [--host <addr>] [--public-url <url>]
+
+Options:
+  --port <n>          Port to listen on (default: 8787)
+  --host <addr>       Interface to bind (default: all, IPv6 and IPv4)
+  --public-url <url>  URL people reach the relay at, used in session links.
+                      Default: taken from each request, which works behind
+                      proxies and tunnels like Cloudflare Tunnel.
+
+Then point the CLI at it:
+  tui2web --relay http://localhost:8787 claude
+
+To use it from your phone away from home, put it behind a tunnel, e.g.:
+  cloudflared tunnel --url http://localhost:8787
+Guide: https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md
+`;
+
+type StartRelay = (opts: { port: number; host?: string; publicUrl?: string; webDist: string }) => {
+  listening: Promise<void>;
+  close(): Promise<void>;
+};
+
+async function relayCommand(argv: string[]) {
+  let port = 8787;
+  let host: string | undefined;
+  let publicUrl: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    const value = () => argv[++i] ?? exit(2, `${arg} needs a value`);
+    if (arg === '-h' || arg === '--help') exit(0, RELAY_HELP);
+    else if (arg === '--port') port = Number(value());
+    else if (arg === '--host') host = value();
+    else if (arg === '--public-url') publicUrl = value();
+    else exit(2, `Unknown option ${arg}\n\n${RELAY_HELP}`);
+  }
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) exit(2, '--port needs a port number');
+
+  // Published package: the relay is compiled into dist/relay with the web
+  // viewer in dist/web. Running from the repo: use the sources directly.
+  const compiled = new URL('./relay/relay.js', import.meta.url);
+  const fromDist = existsSync(fileURLToPath(compiled));
+  const source = '../../server/src/relay.ts';
+  const { startRelay }: { startRelay: StartRelay } = await import(fromDist ? compiled.href : source);
+  const webDist = fileURLToPath(new URL(fromDist ? './web/' : '../../web/dist/', import.meta.url));
+
+  const relay = startRelay({ port, host, publicUrl, webDist });
+  try {
+    await relay.listening;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    exit(1, code === 'EADDRINUSE' ? `Port ${port} is already in use. Try another, e.g. --port ${port + 1}.` : `tui2web relay: ${(err as Error).message}`);
+  }
+  const local = `http://localhost:${port}`;
+  console.log(`\nUse it:  tui2web --relay ${local} claude`);
+  console.log(`Phone access from anywhere: cloudflared tunnel --url ${local}  (then use the tunnel URL as --relay)\n`);
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+    process.on(signal, () => {
+      relay.close().then(() => process.exit(0));
+      setTimeout(() => process.exit(0), 3000).unref();
+    });
+  }
 }
 
 function listCommand() {

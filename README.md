@@ -51,7 +51,11 @@ To test on your phone over Wi-Fi, run the relay with `PUBLIC_URL=http://<your-LA
 
 CLI options: `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--no-wait`, `--hotkey <key>`. The link stays on screen until you press Enter, because full-screen TUIs clear it. After that, Ctrl+\\ shows it again and `tui2web ls` lists running sessions.
 
-## Running the relay in Docker
+## Running your own relay
+
+`tui2web relay` starts one from the CLI. [docs/self-hosting.md](docs/self-hosting.md) covers exposing it with Cloudflare (quick tunnel, your own domain, or Docker with a tunnel token) and Tailscale.
+
+### Docker
 
 ```
 docker build -t tui2web-relay .
