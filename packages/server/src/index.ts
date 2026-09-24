@@ -6,7 +6,7 @@ import { WebSocketServer, type WebSocket } from 'ws';
 import { CLOSE_NOT_FOUND, CLOSE_UNAUTHORIZED, type AgentToRelay, type RelayToAgent } from '@tui2web/protocol';
 import { authCookie, hasValidCookie, isAcceptablePasswordHash, isSameOrigin, safeEqual, verifyPassword } from './auth.ts';
 import { loginPage, messagePage } from './pages.ts';
-import { clampSize, SessionStore, type Session } from './sessions.ts';
+import { clampSize, isValidIdentity, SessionStore, type Session } from './sessions.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -207,17 +207,30 @@ function handleAgent(ws: WebSocket) {
       if (msg.password !== null && !isAcceptablePasswordHash(msg.password)) return fail('invalid password hash');
       const session = store.create({ command: String(msg.command).slice(0, 200), ...size, password: msg.password });
       session.attachAgent(ws);
-      reply({ t: 'registered', id: session.id, agentKey: session.agentKey, url: `${PUBLIC_URL}/session/${session.id}?token=${session.token}` });
+      reply({ t: 'registered', id: session.id, agentKey: session.agentKey, token: session.token, url: `${PUBLIC_URL}/session/${session.id}?token=${session.token}` });
       return;
     }
 
     if (msg.t === 'resume') {
-      const session = store.get(String(msg.id));
-      if (!session || session.ended || !safeEqual(String(msg.agentKey), session.agentKey)) return fail('session not found');
-      session.attachAgent(ws);
-      reply({ t: 'resumed' });
       const size = clampSize(msg.cols, msg.rows);
-      if (size) session.setSize(size.cols, size.rows);
+      const existing = store.get(String(msg.id));
+      if (existing) {
+        if (existing.ended || !safeEqual(String(msg.agentKey), existing.agentKey)) return fail('session not found');
+        existing.attachAgent(ws);
+        reply({ t: 'resumed', restored: false });
+        if (size) existing.setSize(size.cols, size.rows);
+        return;
+      }
+      // Unknown session: the relay restarted or was redeployed. Recreate it
+      // under the same identity so the printed link and phone logins still work.
+      const restore = msg.restore;
+      const identity = { id: msg.id, token: restore?.token, agentKey: msg.agentKey };
+      if (!restore || !size || !isValidIdentity(identity)) return fail('session not found');
+      if (restore.password !== null && !isAcceptablePasswordHash(restore.password)) return fail('invalid password hash');
+      const session = store.create({ command: String(restore.command).slice(0, 200), ...size, password: restore.password }, identity);
+      session.attachAgent(ws);
+      reply({ t: 'resumed', restored: true });
+      console.log(`restored session after relay restart (${store.size} active)`);
       return;
     }
 

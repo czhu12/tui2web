@@ -92,6 +92,8 @@ const encoder = new TextEncoder();
 let ws: WebSocket | null = null;
 let ended = false;
 let retries = 0;
+let notFoundSince: number | null = null;
+const RESTORE_WAIT_MS = 3 * 60_000;
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -118,14 +120,22 @@ function connect() {
       return;
     }
     if (e.code === CLOSE_NOT_FOUND) {
-      ended = true;
-      setStatus('ended');
-      showNotice('This session has ended or no longer exists.', 'error');
-      return;
+      // After a relay restart the session is gone until the laptop reconnects
+      // and restores it, so keep trying for a while before giving up.
+      notFoundSince ??= Date.now();
+      if (Date.now() - notFoundSince > RESTORE_WAIT_MS) {
+        ended = true;
+        setStatus('ended');
+        showNotice('This session has ended or no longer exists.', 'error');
+        return;
+      }
+      setStatus('agent-away');
+      showNotice('Relay restarted. Waiting for your computer to reconnect…');
+    } else {
+      if (ended) return;
+      setStatus('offline');
+      showNotice('Connection lost. Reconnecting…');
     }
-    if (ended) return;
-    setStatus('offline');
-    showNotice('Connection lost. Reconnecting…');
     const delay = Math.min(10_000, 500 * 2 ** retries++);
     window.setTimeout(connect, delay);
   };
@@ -134,6 +144,7 @@ function connect() {
 function handle(msg: RelayToViewer) {
   switch (msg.t) {
     case 'hello':
+      notFoundSince = null;
       titleEl.textContent = msg.command;
       document.title = `${msg.command} · tui2web`;
       term.reset();

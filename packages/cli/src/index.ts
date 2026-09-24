@@ -3,6 +3,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { createRequire } from 'node:module';
 import { hashPassword, loadConfig, promptHidden, saveConfig } from './config.ts';
 import { RelayLink } from './link.ts';
+import { ScreenMirror } from './mirror.ts';
 import { pty } from './pty.ts';
 
 const require = createRequire(import.meta.url);
@@ -91,11 +92,13 @@ async function main() {
   // Whoever typed last decides the PTY size, like tmux's `window-size latest`.
   let owner: 'local' | 'remote' = 'local';
   const remoteDecoder = new StringDecoder('utf8');
+  const mirror = new ScreenMirror(size.cols, size.rows);
 
   const applySize = (cols: number, rows: number) => {
     if (cols === size.cols && rows === size.rows) return;
     size = { cols, rows };
     term?.resize(cols, rows);
+    mirror.resize(cols, rows);
     link.sendSize(cols, rows);
   };
 
@@ -105,6 +108,7 @@ async function main() {
       owner = 'remote';
       applySize(cols, rows);
     },
+    snapshot: () => mirror.snapshot(),
   });
 
   let session: { id: string; url: string };
@@ -131,6 +135,7 @@ async function main() {
 
   term.onData((data) => {
     process.stdout.write(data);
+    mirror.write(data);
     link.sendOutput(Buffer.from(data, 'utf8'));
   });
 

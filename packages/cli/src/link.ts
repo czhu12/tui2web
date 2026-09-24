@@ -8,12 +8,15 @@ const REGISTER_TIMEOUT_MS = 10_000;
 export type LinkHandlers = {
   onInput(data: Buffer): void;
   onResize(cols: number, rows: number): void;
+  /** The current screen, used to repaint a relay that restarted. */
+  snapshot(): Promise<string>;
 };
 
 /**
  * The agent's connection to the relay. Dials out (so it works behind NAT, like
  * ngrok) and keeps the session alive across network blips by resuming with the
- * session's agent key.
+ * session's agent key. If the relay restarted and forgot the session, the
+ * resume recreates it under the same id and token.
  */
 export class RelayLink {
   /** Set once the session is gone for good (e.g. relay restarted). */
@@ -24,7 +27,7 @@ export class RelayLink {
   private ws: WebSocket | null = null;
   private ready = false;
   private finished = false;
-  private session: { id: string; agentKey: string } | null = null;
+  private session: { id: string; agentKey: string; token: string; command: string; password: AgentHello['password'] } | null = null;
   private size = { cols: 80, rows: 24 };
   private backlog: Buffer[] = [];
   private backlogBytes = 0;
@@ -57,8 +60,8 @@ export class RelayLink {
           ws.terminate();
           return reject(new Error(msg?.t === 'error' ? msg.message : 'unexpected reply from relay'));
         }
-        this.session = { id: msg.id, agentKey: msg.agentKey };
-        this.adopt(ws);
+        this.session = { id: msg.id, agentKey: msg.agentKey, token: msg.token, command: hello.command, password: hello.password };
+        this.adopt(ws, []);
         resolve({ id: msg.id, url: msg.url });
       });
     });
@@ -105,10 +108,11 @@ export class RelayLink {
   }
 
   /** Wires up a connection that has completed its hello/resume handshake. */
-  private adopt(ws: WebSocket) {
+  private adopt(ws: WebSocket, preamble: Buffer[]) {
     this.ws = ws;
     this.ready = true;
     this.retries = 0;
+    for (const chunk of preamble) ws.send(chunk);
     for (const chunk of this.backlog) ws.send(chunk);
     this.backlog = [];
     this.backlogBytes = 0;
@@ -134,6 +138,7 @@ export class RelayLink {
 
   private resume() {
     if (this.finished || !this.session) return;
+    const { id, agentKey, token, command, password } = this.session;
     const ws = new WebSocket(this.agentUrl);
     let settled = false;
     const retry = () => {
@@ -142,7 +147,9 @@ export class RelayLink {
       ws.terminate();
       this.scheduleReconnect();
     };
-    ws.on('open', () => ws.send(JSON.stringify({ t: 'resume', ...this.session!, ...this.size } satisfies AgentToRelay)));
+    ws.on('open', () =>
+      ws.send(JSON.stringify({ t: 'resume', id, agentKey, ...this.size, restore: { token, command, password } } satisfies AgentToRelay)),
+    );
     ws.on('error', retry);
     ws.on('close', retry);
     ws.once('message', (raw) => {
@@ -151,7 +158,16 @@ export class RelayLink {
         settled = true;
         ws.off('error', retry);
         ws.off('close', retry);
-        this.adopt(ws);
+        if (!msg.restored) return this.adopt(ws, []);
+        // The relay starts from a blank screen. Repaint it from our mirror;
+        // the snapshot already includes everything in the backlog, so drop it.
+        // Output produced while the snapshot is taken lands in the new backlog.
+        this.backlog = [];
+        this.backlogBytes = 0;
+        this.handlers.snapshot().then((screen) => {
+          if (ws.readyState !== WebSocket.OPEN) return this.scheduleReconnect();
+          this.adopt(ws, [Buffer.from(screen, 'utf8')]);
+        });
       } else if (msg?.t === 'error') {
         // The relay no longer knows this session; keep running locally.
         settled = true;

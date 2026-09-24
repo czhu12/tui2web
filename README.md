@@ -42,6 +42,7 @@ npm run build            # build the web viewer into packages/web/dist
 npm run relay            # relay on :8787  (PORT, HOST, PUBLIC_URL env vars)
 node packages/cli/src/index.ts bash     # in another terminal
 node scripts/e2e.mjs     # end-to-end test against the running relay
+node scripts/restart.mjs # session survives a relay restart (starts its own relay)
 ```
 
 To test on your phone over Wi-Fi, run the relay with `PUBLIC_URL=http://<your-LAN-ip>:8787`.
@@ -56,6 +57,8 @@ docker run -p 8787:8787 -e PUBLIC_URL=https://tui2web.com tui2web-relay
 # or: PUBLIC_URL=https://tui2web.com docker compose up -d
 ```
 
+The public relay runs on Canine (project `tui2web`, `production` cluster) at https://tui2web.oncanine.run. It must stay at **1 replica**, because sessions live in memory. `PUBLIC_URL` is set as a project env var.
+
 Put it behind something that terminates TLS (Caddy, Fly.io, a load balancer) and forwards WebSockets. `/healthz` reports session count and memory.
 
 ## Capacity (single instance)
@@ -67,7 +70,7 @@ Measured with `scripts/loadtest.mjs` (one agent and one viewer per session, Appl
 | fresh / idle session | ~0.2 MB | ~5,000 |
 | long session (1,000-line scrollback full) | ~2.2 MB | ~450 |
 
-One core handles ~2,000 sessions streaming Claude-style output at the same time (p50 42 ms). It saturates around 3,000 (p50 264 ms). Memory runs out before CPU does. Sessions live in memory, so a relay restart ends them.
+One core handles ~2,000 sessions streaming Claude-style output at the same time (p50 42 ms). It saturates around 3,000 (p50 264 ms). Memory runs out before CPU does. Sessions live in memory. If the relay restarts or is redeployed, each CLI re-registers its session under the same id and token and repaints the screen from its own copy, so printed links and phone logins keep working. Phones wait up to 3 minutes for this to happen.
 
 ## Status
 

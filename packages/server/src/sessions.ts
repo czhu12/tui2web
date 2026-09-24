@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket, RawData } from 'ws';
@@ -20,6 +20,18 @@ export function randomId(bytes: number): string {
   return randomBytes(bytes).toString('base64url');
 }
 
+/** Credentials that identify a session; the agent keeps them to restore it. */
+export type SessionIdentity = { id: string; token: string; agentKey: string };
+
+const ID_RE = /^[A-Za-z0-9_-]{16,64}$/;
+const SECRET_RE = /^[A-Za-z0-9_-]{32,128}$/;
+
+export function isValidIdentity(x: { id: unknown; token: unknown; agentKey: unknown }): x is SessionIdentity {
+  return typeof x.id === 'string' && ID_RE.test(x.id) &&
+    typeof x.token === 'string' && SECRET_RE.test(x.token) &&
+    typeof x.agentKey === 'string' && SECRET_RE.test(x.agentKey);
+}
+
 export function clampSize(cols: unknown, rows: unknown): { cols: number; rows: number } | null {
   if (!Number.isInteger(cols) || !Number.isInteger(rows)) return null;
   const c = cols as number;
@@ -28,6 +40,8 @@ export function clampSize(cols: unknown, rows: unknown): { cols: number; rows: n
   return { cols: c, rows: r };
 }
 
+type SessionOptions = { command: string; cols: number; rows: number; password: PasswordHash | null };
+
 type Viewer = {
   ws: WebSocket;
   /** Live output queued while this viewer's snapshot is being produced. */
@@ -35,11 +49,15 @@ type Viewer = {
 };
 
 export class Session {
-  readonly id = randomId(16);
-  readonly token = randomId(32);
-  readonly agentKey = randomId(32);
-  /** Value of the viewer auth cookie for this session. */
-  readonly cookieValue = randomId(32);
+  readonly id: string;
+  readonly token: string;
+  readonly agentKey: string;
+  /**
+   * Value of the viewer auth cookie. Derived from the token rather than random,
+   * so a session restored after a relay restart accepts the same cookie and
+   * phones stay logged in.
+   */
+  readonly cookieValue: string;
   readonly command: string;
   readonly password: PasswordHash | null;
   cols: number;
@@ -57,7 +75,11 @@ export class Session {
   private totalLoginFailures = 0;
   private dispose: () => void;
 
-  constructor(opts: { command: string; cols: number; rows: number; password: PasswordHash | null; dispose: () => void }) {
+  constructor(opts: SessionOptions & { identity: SessionIdentity; dispose: () => void }) {
+    this.id = opts.identity.id;
+    this.token = opts.identity.token;
+    this.agentKey = opts.identity.agentKey;
+    this.cookieValue = createHash('sha256').update(`tui2web-cookie:${this.token}`).digest('base64url');
     this.command = opts.command;
     this.cols = opts.cols;
     this.rows = opts.rows;
@@ -223,8 +245,10 @@ export class Session {
 export class SessionStore {
   private sessions = new Map<string, Session>();
 
-  create(opts: { command: string; cols: number; rows: number; password: PasswordHash | null }): Session {
-    const session: Session = new Session({ ...opts, dispose: () => this.sessions.delete(session.id) });
+  /** Creates a new session, or recreates one under a known identity (restore). */
+  create(opts: SessionOptions, identity?: SessionIdentity): Session {
+    const id = identity ?? { id: randomId(16), token: randomId(32), agentKey: randomId(32) };
+    const session: Session = new Session({ ...opts, identity: id, dispose: () => this.sessions.delete(session.id) });
     this.sessions.set(session.id, session);
     return session;
   }

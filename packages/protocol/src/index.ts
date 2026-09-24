@@ -25,13 +25,18 @@ export type AgentHello = {
   password: PasswordHash | null;
 };
 
-/** Sent instead of `hello` when reconnecting to an existing session. */
+/**
+ * Sent instead of `hello` when reconnecting. If the relay no longer has the
+ * session (it restarted or was redeployed), `restore` lets it recreate the
+ * session under the same id and token, so existing links keep working.
+ */
 export type AgentResume = {
   t: 'resume';
   id: string;
   agentKey: string;
   cols: number;
   rows: number;
+  restore: { token: string; command: string; password: PasswordHash | null };
 };
 
 /** The PTY's size changed (agent is the source of truth for size). */
@@ -42,8 +47,9 @@ export type AgentExit = { t: 'exit'; code: number };
 export type AgentToRelay = AgentHello | AgentResume | AgentSize | AgentExit;
 
 export type RelayToAgent =
-  | { t: 'registered'; id: string; agentKey: string; url: string }
-  | { t: 'resumed' }
+  | { t: 'registered'; id: string; agentKey: string; token: string; url: string }
+  /** `restored`: the session was recreated, so the relay's screen copy is empty. */
+  | { t: 'resumed'; restored: boolean }
   /** A viewer wants the PTY resized to fit its screen. */
   | { t: 'resize'; cols: number; rows: number }
   | { t: 'error'; message: string };
