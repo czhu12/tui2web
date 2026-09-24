@@ -9,7 +9,9 @@ import { loginPage, messagePage, setSiteUrl } from './pages.ts';
 import { clampSize, isValidIdentity, SessionStore, type Session } from './sessions.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
-const HOST = process.env.HOST ?? '0.0.0.0';
+// Default '::' accepts IPv6 and IPv4. With only '0.0.0.0', clients that resolve
+// localhost to ::1 first (Node 17-19, among others) get connection refused.
+const HOST = process.env.HOST;
 const PUBLIC_URL = (process.env.PUBLIC_URL ?? `http://localhost:${PORT}`).replace(/\/+$/, '');
 const WEB_DIST = process.env.WEB_DIST ?? fileURLToPath(new URL('../../web/dist/', import.meta.url));
 
@@ -286,9 +288,22 @@ setInterval(() => {
   }
 }, 30_000).unref();
 
-server.listen(PORT, HOST, () => {
-  console.log(`tui2web relay listening on ${HOST}:${PORT} (public URL ${PUBLIC_URL})`);
-});
+function listen(host: string) {
+  server.listen(PORT, host, () => {
+    console.log(`tui2web relay listening on ${host}:${PORT} (public URL ${PUBLIC_URL})`);
+  });
+}
+if (HOST) {
+  listen(HOST);
+} else {
+  // Hosts with IPv6 disabled (common in containers) can't bind '::'.
+  server.once('error', (err: NodeJS.ErrnoException) => {
+    if (err.code !== 'EAFNOSUPPORT' && err.code !== 'EADDRNOTAVAIL') throw err;
+    console.log('IPv6 unavailable, listening on IPv4 only');
+    listen('0.0.0.0');
+  });
+  listen('::');
+}
 
 // As PID 1 in a container, Node gets no default signal handling.
 for (const signal of ['SIGTERM', 'SIGINT'] as const) {

@@ -88,9 +88,13 @@ page = await fetch(url, { redirect: 'manual' });
 check('original printed link still works', page.status === 303);
 
 phone = viewer();
-const snap = await until(() => phone.msgs.find((m) => m.t === 'snapshot'));
-check('restored screen includes output from before the restart', snap.data.includes('before-restart-23'));
-check('restored screen includes output from during the outage', snap.data.includes('during-outage-42'));
+// A phone that reconnects right away may get the relay's snapshot just before
+// the CLI's repaint lands; the repaint then arrives as live output. Check what
+// the phone ends up showing: snapshot plus anything streamed after it.
+const shown = () => (phone.msgs.find((m) => m.t === 'snapshot')?.data ?? '') + phone.screen;
+await until(() => shown().includes('before-restart-23') && shown().includes('during-outage-42'), 5000).catch(() => {});
+check('restored screen includes output from before the restart', shown().includes('before-restart-23'));
+check('restored screen includes output from during the outage', shown().includes('during-outage-42'));
 
 phone.ws.send(Buffer.from('echo after-restart-$((60+1))\r'));
 await until(() => phone.screen.includes('after-restart-61'));

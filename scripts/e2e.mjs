@@ -26,7 +26,12 @@ const cli = pty.spawn(CLI_NODE, [CLI_ENTRY, '--relay', RELAY, '--no-qr', '--no-w
 });
 cli.onData((d) => (cliOut += d));
 const cliExited = new Promise((res) => cli.onExit(({ exitCode }) => res(exitCode)));
-const url = await until(() => cliOut.match(/https?:\/\/\S+\/session\/\S+\?token=[\w-]+/)?.[0]);
+const url = await until(() => cliOut.match(/https?:\/\/\S+\/session\/\S+\?token=[\w-]+/)?.[0]).catch((err) => {
+  console.log('CLI output so far:\n' + cliOut);
+  throw err;
+});
+// Wait for bash's first prompt, so the snapshot has something in it.
+await until(() => /\$ $/.test(cliOut));
 check('CLI registers and prints a session URL', true, url.replace(/token=.*/, 'token=…'));
 const u = new URL(url);
 const base = `${u.origin}${u.pathname}`;
