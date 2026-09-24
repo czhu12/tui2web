@@ -102,6 +102,14 @@
     },
     {
       "@type": "Question",
+      "name": "What if I want it really secure?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Run your own relay and reach it over Tailscale. Install Tailscale on your computer and your phone, run tui2web relay, then tui2web --relay http://your-computer:8787 claude. Traffic between your phone and your computer is encrypted end to end with WireGuard, and nothing is exposed to the internet: no public relay, no Cloudflare, no open ports. Tailscale's servers only help your devices find each other and never see your terminal. Add tui2web set-password for a second layer. See the self-hosting guide."
+      }
+    },
+    {
+      "@type": "Question",
       "name": "What happens if my connection drops?",
       "acceptedAnswer": {
         "@type": "Answer",
@@ -520,6 +528,10 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           <details>
             <summary>I don't trust your relay. Can I run my own?</summary>
             <p>Yes, and it's one command. <code>tui2web relay</code> starts a relay on your computer. To reach it from your phone, put it behind a Cloudflare Tunnel (<code>cloudflared tunnel --url http://localhost:8787</code>), or use Tailscale if you don't want anyone in the middle. Then run <code>tui2web --relay https://your-relay claude</code>. The <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-hosting guide</a> covers quick tunnels, your own domain and Docker.</p>
+          </details>
+          <details>
+            <summary>What if I want it <em>really</em> secure?</summary>
+            <p>Run your own relay and reach it over <a href="https://tailscale.com">Tailscale</a>. Install Tailscale on your computer and your phone, run <code>tui2web relay</code>, then <code>tui2web --relay http://your-computer:8787 claude</code>. Traffic between your phone and your computer is encrypted end to end with WireGuard, and nothing is exposed to the internet: no public relay, no Cloudflare, no open ports. Tailscale's servers only help your devices find each other and never see your terminal. Add <code>tui2web set-password</code> for a second layer. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md#most-private-tailscale">self-hosting guide</a>.</p>
           </details>
           <details>
             <summary>What happens if my connection drops?</summary>

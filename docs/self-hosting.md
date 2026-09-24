@@ -1,10 +1,10 @@
 # Running your own relay
 
-By default, `tui2web` sends your session through the public relay at `tui2web.com`. The relay passes your terminal between your computer and your phone, and it can see what's in the session. If you'd rather not trust it, run your own. It's one command, and your phone can reach it from anywhere through Cloudflare.
+By default, `tui2web` sends your session through the public relay at `tui2web.com`. The relay passes your terminal between your computer and your phone, and it can see what's in the session. If you'd rather not trust it, run your own. It's one command, and your phone can reach it over Tailscale (most private) or a Cloudflare tunnel.
 
 ```
-your computer ──▶ your relay ◀── Cloudflare Tunnel ◀── your phone
- tui2web claude   tui2web relay   (https://…)
+your computer ──▶ your relay ◀── Tailscale or Cloudflare ◀── your phone
+ tui2web claude   tui2web relay
 ```
 
 ## 1. Start a relay
@@ -36,7 +36,29 @@ tui2web --relay http://localhost:8787 bash
 
 Pick one option.
 
-### Option A: Cloudflare quick tunnel (no account, one minute)
+### Most private: Tailscale
+
+With [Tailscale](https://tailscale.com), your phone talks to your computer directly over an encrypted WireGuard connection. Nothing is exposed to the internet: there's no public relay, no Cloudflare, and no open ports.
+
+1. Install Tailscale on your computer and your phone, and sign both into the same account.
+2. Start the relay and point the CLI at your computer's Tailscale name:
+
+```
+tui2web relay
+tui2web --relay http://your-computer:8787 claude
+```
+
+`your-computer` is the machine's name in Tailscale (`tailscale status` lists it). Its `100.x.y.z` address works too.
+
+Why it's the most private option:
+
+- Traffic is encrypted end to end between your devices. When Tailscale can't connect them directly it routes through its relay servers, but those only forward encrypted packets.
+- Only devices on your tailnet can reach the relay, so nobody else can find it or start sessions on it. To be strict about that, bind the relay to your Tailscale address only: `tui2web relay --host 100.x.y.z`.
+- Tailscale's coordination servers see which devices you have and when they're online, never your terminal.
+
+The trade-offs: your phone needs the Tailscale app connected, it only works for your own devices, and the link is `http://`. WireGuard still encrypts it, but the browser doesn't treat it as HTTPS.
+
+### Cloudflare quick tunnel (no account, one minute)
 
 Install [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (`brew install cloudflared` on macOS), then run it next to the relay:
 
@@ -50,9 +72,9 @@ It prints a URL like `https://random-words-here.trycloudflare.com`. Use it as yo
 tui2web --relay https://random-words-here.trycloudflare.com claude
 ```
 
-The URL changes every time `cloudflared` restarts, and Cloudflare offers quick tunnels for testing, without uptime guarantees. For something permanent, use option B.
+The URL changes every time `cloudflared` restarts, and Cloudflare offers quick tunnels for testing, without uptime guarantees. For something permanent, use a named tunnel.
 
-### Option B: Named Cloudflare tunnel on your own domain
+### Named Cloudflare tunnel on your own domain
 
 This needs a free Cloudflare account and a domain whose DNS is on Cloudflare. You get a stable address like `https://relay.example.com`.
 
@@ -76,7 +98,7 @@ ingress:
 
 Start it with `cloudflared tunnel run tui2web`. To keep it running across reboots, install it as a service with `sudo cloudflared service install`.
 
-### Option C: A server, with Docker and a tunnel token
+### A server, with Docker and a Cloudflare tunnel token
 
 To run the relay on a server instead of your laptop, create a tunnel in the Cloudflare dashboard (Zero Trust → Networks → Tunnels). Give it a public hostname whose service is `http://relay:8787`, and copy its token. Then:
 
@@ -118,7 +140,7 @@ Everything else works the same: `tui2web set-password`, the Ctrl+\ link hotkey, 
 
 ## Notes
 
-- **Cloudflare can see your traffic too.** A Cloudflare tunnel decrypts traffic at Cloudflare's edge, so you're trusting Cloudflare instead of tui2web.com. For a path where nobody in the middle can read it, reach your relay over [Tailscale](https://tailscale.com) instead: run `tui2web relay` on your computer, put your phone on the same tailnet, and use `--relay http://your-computer:8787`. WireGuard encrypts it end to end.
-- **Who can use your relay.** Anyone who knows its URL can start sessions on it, which uses your bandwidth. They can't see or control your sessions, because those still need the link's token or your password.
+- **Cloudflare can see your traffic too.** A Cloudflare tunnel decrypts traffic at Cloudflare's edge, so you're trusting Cloudflare instead of tui2web.com. For a path where nobody in the middle can read it, use [Tailscale](#most-private-tailscale).
+- **Who can use your relay.** With a Cloudflare tunnel, anyone who knows its URL can start sessions on it, which uses your bandwidth. They can't see or control your sessions, because those still need the link's token or your password.
 - **WebSockets.** Cloudflare passes them through. It closes connections that are idle for about 100 seconds, and the relay pings every 30 seconds to prevent that.
 - **Health check.** `GET /healthz` returns `ok` and the number of active sessions.
