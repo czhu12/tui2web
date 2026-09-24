@@ -35,7 +35,11 @@ tui2web [options] <command> [args...]
 --relay <url>    Relay server (default: $TUI2WEB_RELAY or the public relay)
 --no-password    Only accept the link's token for this session
 --no-qr          Don't print a QR code
+--wait <secs>    Seconds to show the link before starting the command (default: 10)
+--no-wait        Start the command immediately
 ```
+
+Full-screen programs clear the screen when they start. So tui2web shows the link for 10 seconds first: press Enter to start right away, or Ctrl+C to cancel. The link is printed again when the session ends.
 
 You can self-host the relay. See the [repository](https://github.com/czhu12/tui2web).
 

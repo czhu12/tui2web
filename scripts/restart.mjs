@@ -36,7 +36,7 @@ let relay = startRelay();
 await relay.ready;
 
 let cliOut = '';
-const cli = pty.spawn(process.execPath, ['packages/cli/src/index.ts', '--relay', RELAY, '--no-qr', 'bash', '--noprofile', '--norc'], {
+const cli = pty.spawn(process.execPath, ['packages/cli/src/index.ts', '--relay', RELAY, '--no-qr', '--no-wait', 'bash', '--noprofile', '--norc'], {
   cols: 100, rows: 30, cwd: process.cwd(), env: { ...process.env, PS1: '$ ' },
 });
 cli.onData((d) => (cliOut += d));

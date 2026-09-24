@@ -10,8 +10,7 @@ const require = createRequire(import.meta.url);
 const qrcode: { generate(text: string, opts: { small: boolean }, cb: (qr: string) => void): void } = require('qrcode-terminal');
 const { version } = require('../package.json');
 
-// TODO: switch to https://tui2web.com once the domain is set up.
-const DEFAULT_RELAY = 'https://tui2web.oncanine.run';
+const DEFAULT_RELAY = 'https://tui2web.com';
 
 const HELP = `tui2web ${version}: open a terminal program on your phone
 
@@ -24,6 +23,8 @@ Options:
   --relay <url>    Relay server (default: $TUI2WEB_RELAY, config, or ${DEFAULT_RELAY})
   --no-password    Only accept the link's token for this session, not your password
   --no-qr          Don't print a QR code
+  --wait <secs>    Seconds to show the link before starting the command (default: 10)
+  --no-wait        Start the command immediately
   -h, --help       Show this help
   -v, --version    Show version
 
@@ -31,10 +32,10 @@ Example:
   tui2web claude --continue
 `;
 
-type Options = { relay?: string; password: boolean; qr: boolean; command: string[] };
+type Options = { relay?: string; password: boolean; qr: boolean; wait: number; command: string[] };
 
 function parseArgs(argv: string[]): Options {
-  const opts: Options = { password: true, qr: true, command: [] };
+  const opts: Options = { password: true, qr: true, wait: 10, command: [] };
   let i = 0;
   for (; i < argv.length; i++) {
     const arg = argv[i];
@@ -47,6 +48,12 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '-v' || arg === '--version') exit(0, version);
     else if (arg === '--no-password') opts.password = false;
     else if (arg === '--no-qr') opts.qr = false;
+    else if (arg === '--no-wait') opts.wait = 0;
+    else if (arg === '--wait' || arg.startsWith('--wait=')) {
+      const value = arg === '--wait' ? argv[++i] : arg.slice('--wait='.length);
+      opts.wait = Number(value);
+      if (!Number.isFinite(opts.wait) || opts.wait < 0) exit(2, '--wait needs a number of seconds');
+    }
     else if (arg === '--relay') opts.relay = argv[++i] ?? exit(2, '--relay needs a URL');
     else if (arg.startsWith('--relay=')) opts.relay = arg.slice('--relay='.length);
     else exit(2, `Unknown option ${arg}\n\n${HELP}`);
@@ -120,6 +127,13 @@ async function main() {
 
   printBanner(session.url, opts.qr, password !== null);
 
+  // Full-screen programs clear the screen as soon as they start, which would
+  // hide the link and QR code, so give people a moment to scan or copy it.
+  if (opts.wait > 0 && process.stdin.isTTY && !(await countdown(opts.wait, file))) {
+    await link.finish(130);
+    exit(130, 'Cancelled.');
+  }
+
   try {
     term = pty.spawn(file, args, {
       name: 'xterm-256color',
@@ -164,8 +178,45 @@ async function main() {
     stdin.pause();
     await link.finish(exitCode);
     const note = link.lostReason ? ` (relay lost the session: ${link.lostReason})` : '';
-    process.stderr.write(`\r\n[tui2web] session ${session.id} ended${note}\r\n`);
+    process.stderr.write(`\r\n[tui2web] session ended${note}: ${session.url}\r\n`);
     process.exit(exitCode);
+  });
+}
+
+/**
+ * Counts down before handing the terminal to the command. Resolves true to
+ * start (timer ran out, or Enter), false if cancelled with Ctrl+C / Esc.
+ */
+function countdown(seconds: number, command: string): Promise<boolean> {
+  const { stdin, stdout } = process;
+  const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
+  let left = Math.ceil(seconds);
+  const render = () =>
+    stdout.write(`\r\x1b[2KStarting ${command} in ${left}s… ${dim('Enter to start now, Ctrl+C to cancel')}`);
+
+  return new Promise((resolve) => {
+    const done = (start: boolean) => {
+      clearInterval(timer);
+      stdin.off('data', onKey);
+      stdin.setRawMode(false);
+      stdin.pause();
+      stdout.write('\r\x1b[2K');
+      resolve(start);
+    };
+    const onKey = (key: Buffer) => {
+      const k = key.toString();
+      if (k === '\r' || k === '\n' || k === ' ') done(true);
+      else if (k === '\u0003' || k === '\u001b') done(false);
+    };
+    const timer = setInterval(() => {
+      left--;
+      if (left <= 0) done(true);
+      else render();
+    }, 1000);
+    render();
+    stdin.setRawMode(true);
+    stdin.on('data', onKey);
+    stdin.resume();
   });
 }
 

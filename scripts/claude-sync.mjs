@@ -23,7 +23,7 @@ const screen = (t, label) => {
 // Laptop: the real terminal the user sees.
 const laptop = new Terminal({ ...LAPTOP, allowProposedApi: true });
 let raw = '';
-const cli = pty.spawn(process.execPath, ['packages/cli/src/index.ts', '--no-qr', 'claude'], {
+const cli = pty.spawn(process.execPath, ['packages/cli/src/index.ts', '--no-qr', '--no-wait', 'claude'], {
   ...LAPTOP, name: 'xterm-256color', cwd: process.cwd(), env: process.env,
 });
 cli.onData((d) => { raw += d; laptop.write(d); });

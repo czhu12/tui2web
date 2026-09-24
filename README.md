@@ -43,11 +43,12 @@ npm run relay            # relay on :8787  (PORT, HOST, PUBLIC_URL env vars)
 node packages/cli/src/index.ts bash     # in another terminal
 node scripts/e2e.mjs     # end-to-end test against the running relay
 node scripts/restart.mjs # session survives a relay restart (starts its own relay)
+node scripts/countdown.mjs # pre-start countdown behaviour
 ```
 
 To test on your phone over Wi-Fi, run the relay with `PUBLIC_URL=http://<your-LAN-ip>:8787`.
 
-CLI options: `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`.
+CLI options: `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--wait <secs>` / `--no-wait` (the link is shown for 10s before the command starts, because full-screen TUIs clear it).
 
 ## Running the relay in Docker
 
@@ -57,7 +58,7 @@ docker run -p 8787:8787 -e PUBLIC_URL=https://tui2web.com tui2web-relay
 # or: PUBLIC_URL=https://tui2web.com docker compose up -d
 ```
 
-The public relay runs on Canine (project `tui2web`, `production` cluster) at https://tui2web.oncanine.run. It must stay at **1 replica**, because sessions live in memory. `PUBLIC_URL` is set as a project env var.
+The public relay runs on Canine (project `tui2web`, `production` cluster) at https://tui2web.com (also https://tui2web.oncanine.run). It must stay at **1 replica**, because sessions live in memory. `PUBLIC_URL` is set as a project env var.
 
 Put it behind something that terminates TLS (Caddy, Fly.io, a load balancer) and forwards WebSockets. `/healthz` reports session count and memory.
 
