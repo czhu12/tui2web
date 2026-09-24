@@ -73,10 +73,31 @@ export function extractHotkey(input: string, hotkey: Hotkey): { pressed: boolean
   return { pressed, rest };
 }
 
-// Mouse reports (SGR and X10), focus in/out, and kitty key-release events.
-const NOT_A_KEY = /^(?:\x1b\[<[\d;]*[Mm]|\x1b\[M[\s\S]{3}|\x1b\[[IO]|\x1b\[[\d:;]*:3u)+$/;
+// Mouse reports (SGR and X10), focus in/out, kitty key-release events, and
+// the terminal's own answers to queries the app sends: cursor position, device
+// status and attributes, kitty keyboard flags, mode reports, window reports,
+// and DCS/OSC replies (e.g. XTVERSION, colours). Claude Code asks these on
+// every redraw, so treating the answers as typing made the size ping-pong.
+const NOT_A_KEY = new RegExp(
+  '^(?:' +
+    [
+      '\\x1b\\[<[\\d;]*[Mm]',
+      '\\x1b\\[M[\\s\\S]{3}',
+      '\\x1b\\[[IO]',
+      '\\x1b\\[[\\d:;]*:3u',
+      '\\x1b\\[\\??\\d+;\\d+R',
+      '\\x1b\\[\\d*n',
+      '\\x1b\\[[?>=][\\d;]*c',
+      '\\x1b\\[\\?\\d+u',
+      '\\x1b\\[\\?[\\d;]*\\$y',
+      '\\x1b\\[\\d+(?:;\\d+)*t',
+      '\\x1bP[^\\x1b]*\\x1b\\\\',
+      '\\x1b\\][^\\x07\\x1b]*(?:\\x07|\\x1b\\\\)',
+    ].join('|') +
+    ')+$',
+);
 
-/** True for input made up only of mouse reports, focus changes and key releases. */
+/** True for input that isn't the user typing: mouse, focus, key releases, query answers. */
 export function isNotAKeyPress(input: string): boolean {
   return NOT_A_KEY.test(input);
 }

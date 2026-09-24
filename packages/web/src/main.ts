@@ -29,7 +29,13 @@ term.loadAddon(fit);
 term.open($('#term'));
 
 const keys = new Keys({ term, send: sendInput, row: keyRow, pad });
-term.onData((data) => sendInput(keys.applyMods(data), isKeyPress(data)));
+term.onData((data) => {
+  // The laptop's terminal already answers the app's queries (cursor position,
+  // device attributes, ...). Answering from here too would give the app every
+  // reply twice, so drop ours.
+  if (isTerminalResponse(data)) return;
+  sendInput(keys.applyMods(data), isKeyPress(data));
+});
 term.onBinary((data) => sendInput(data, false)); // X10 mouse reports
 
 // ---- sizing -------------------------------------------------------------------
@@ -191,6 +197,27 @@ function sendInput(data: string, claim = true) {
 /** False for input made up only of mouse reports (SGR / X10) and focus in/out events. */
 function isKeyPress(data: string): boolean {
   return !/^(?:\x1b\[<[\d;]*[Mm]|\x1b\[M[\s\S]{3}|\x1b\[[IO])+$/.test(data);
+}
+
+// Answers xterm.js sends to queries: cursor position, device status and
+// attributes, kitty keyboard flags, mode reports, window reports, DCS and OSC.
+const TERMINAL_RESPONSE = new RegExp(
+  '^(?:' +
+    [
+      '\\x1b\\[\\??\\d+;\\d+R',
+      '\\x1b\\[\\d*n',
+      '\\x1b\\[[?>=][\\d;]*c',
+      '\\x1b\\[\\?\\d+u',
+      '\\x1b\\[\\?[\\d;]*\\$y',
+      '\\x1b\\[\\d+(?:;\\d+)*t',
+      '\\x1bP[^\\x1b]*\\x1b\\\\',
+      '\\x1b\\][^\\x07\\x1b]*(?:\\x07|\\x1b\\\\)',
+    ].join('|') +
+    ')+$',
+);
+
+function isTerminalResponse(data: string): boolean {
+  return TERMINAL_RESPONSE.test(data);
 }
 
 function sendControl(msg: ViewerToRelay) {

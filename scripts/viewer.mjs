@@ -17,10 +17,15 @@ const check = (name, ok, detail = '') => {
 };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Laptop: the fake full-screen app turns on mouse tracking, like Claude Code.
+// Laptop: the fake full-screen app turns on mouse tracking and queries the
+// cursor position on every redraw, like Claude Code. `laptop` is the laptop's
+// terminal emulator, which answers those queries through the CLI's stdin.
+const { Terminal } = require('@xterm/headless');
+const laptop = new Terminal({ cols: 120, rows: 40, allowProposedApi: true });
 let out = '';
 const cli = pty.spawn(CLI_NODE, [CLI_ENTRY, '--relay', RELAY, '--no-qr', '--no-wait', 'node', 'scripts/fake-tui.mjs'], { cols: 120, rows: 40, cwd: process.cwd(), env: process.env });
-cli.onData((d) => (out += d));
+cli.onData((d) => { out += d; laptop.write(d); });
+laptop.onData((d) => cli.write(d));
 while (!/token=[\w-]+/.test(out)) await sleep(50);
 const url = out.match(/http\S+token=[\w-]+/)[0];
 
@@ -37,8 +42,9 @@ const page = await browser.newPage({ viewport: { width: 390, height: 800 }, hasT
 await page.goto(url);
 await page.waitForSelector('.xterm-screen');
 await sleep(1500);
-const phoneSize = sizes.at(-1);
-check('opening the page claims a phone-sized screen', !!phoneSize && phoneSize !== '120x40', phoneSize);
+// The size the page asked for (the first one that isn't the laptop's).
+const phoneSize = sizes.find((sz) => sz !== '120x40');
+check('opening the page claims a phone-sized screen', !!phoneSize && sizes.at(-1) === phoneSize, sizes.join(','));
 
 cli.write('k'); // laptop types: laptop owns the size again
 await sleep(600);
@@ -55,6 +61,12 @@ await page.locator('.xterm-helper-textarea').focus();
 await page.keyboard.type('x');
 await sleep(800);
 check('typing in the browser claims the size', sizes.at(-1) === phoneSize, sizes.at(-1));
+
+// Nobody touches anything: both terminals see the app's cursor queries on
+// every redraw. Answers must not claim the size, or it ping-pongs (flashing).
+const idleFrom = sizes.length;
+await sleep(3000);
+check('idle with the app querying the terminal: the phone keeps the size', sizes.length === idleFrom && sizes.at(-1) === phoneSize, sizes.slice(idleFrom).join(',') || sizes.at(-1));
 
 await browser.close();
 watcher.close();
