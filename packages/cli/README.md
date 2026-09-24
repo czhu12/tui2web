@@ -35,11 +35,20 @@ tui2web [options] <command> [args...]
 --relay <url>    Relay server (default: $TUI2WEB_RELAY or the public relay)
 --no-password    Only accept the link's token for this session
 --no-qr          Don't print a QR code
---wait <secs>    Seconds to show the link before starting the command (default: 10)
---no-wait        Start the command immediately
+--no-wait        Start the command right away instead of waiting for Enter
+--hotkey <key>   Key that shows the link again (default: ctrl-\; e.g. ctrl-^, ctrl-g, none)
 ```
 
-Full-screen programs clear the screen when they start. So tui2web shows the link for 10 seconds first: press Enter to start right away, or Ctrl+C to cancel. The link is printed again when the session ends.
+## Getting the link back
+
+Full-screen programs clear the screen when they start, so tui2web keeps the link and QR code up until you press **Enter**. Ctrl+C cancels.
+
+Once the program is running, there are two ways to get the link again:
+
+- Press **Ctrl+\\** to show the link and QR code over the program. Press any key to go back. The program keeps running meanwhile.
+- Run **`tui2web ls`** in another terminal to list your running sessions and their links.
+
+The link is also printed again when the session ends.
 
 You can self-host the relay. See the [repository](https://github.com/czhu12/tui2web).
 

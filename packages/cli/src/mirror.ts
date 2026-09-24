@@ -31,6 +31,15 @@ export class ScreenMirror {
    * made before this call (xterm parses asynchronously, so wait for the queue).
    */
   snapshot(): Promise<string> {
-    return new Promise((resolve) => this.term.write('', () => resolve(this.serializer.serialize({ scrollback: 1000 }))));
+    return this.serialize(1000);
+  }
+
+  /** Just the visible screen (plus modes and cursor), for repainting the local terminal. */
+  screen(): Promise<string> {
+    return this.serialize(0);
+  }
+
+  private serialize(scrollback: number): Promise<string> {
+    return new Promise((resolve) => this.term.write('', () => resolve(this.serializer.serialize({ scrollback }))));
   }
 }

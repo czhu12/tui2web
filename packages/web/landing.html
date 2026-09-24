@@ -223,7 +223,9 @@
 █▄▄▄▄▄▄▄█▄█▄▄███████▄▄▄▄▄▄█</span>
 <span class="d">Anyone with this link can control this terminal.</span>
 
-Starting claude in 7s… <span class="d">Enter to start now, Ctrl+C to cancel</span></pre>
+<span class="d">Press Ctrl+\ any time to show this link again.</span>
+
+Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to cancel)</span></pre>
           </div>
         </div>
 
@@ -262,7 +264,7 @@ Starting claude in 7s… <span class="d">Enter to start now, Ctrl+C to cancel</s
         <div class="steps">
           <div class="card">
             <h3>Run it</h3>
-            <p>Put <code>tui2web</code> in front of any command. It prints a private link and a QR code, and gives you 10 seconds to grab it before the app starts.</p>
+            <p>Put <code>tui2web</code> in front of any command. It prints a private link and a QR code, and waits for you to press Enter before starting the app. Lost it? Press Ctrl+\ to bring it back.</p>
           </div>
           <div class="card">
             <h3>Scan the code</h3>
@@ -337,7 +339,10 @@ Starting claude in 7s… <span class="d">Enter to start now, Ctrl+C to cancel</s
         <p class="section-lede">Everything you need, in one table.</p>
         <table>
           <tr><td><code>tui2web &lt;command&gt; [args…]</code></td><td>Run a command and share it. For example <code>tui2web claude</code>, <code>tui2web opencode</code> or <code>tui2web bash</code>.</td></tr>
-          <tr><td><code>--wait &lt;secs&gt;</code> / <code>--no-wait</code></td><td>How long to show the link before starting the app (default 10s). Press Enter to start early, or Ctrl+C to cancel.</td></tr>
+          <tr><td><code>Ctrl+\</code></td><td>While the app runs, show the link and QR code again. Press any key to go back.</td></tr>
+          <tr><td><code>tui2web ls</code></td><td>List your running sessions and their links, from any terminal.</td></tr>
+          <tr><td><code>--no-wait</code></td><td>Start the app right away instead of waiting for Enter on the link screen.</td></tr>
+          <tr><td><code>--hotkey &lt;key&gt;</code></td><td>Change the Ctrl+\ key, for example <code>ctrl-^</code> or <code>ctrl-g</code>, or turn it off with <code>none</code>.</td></tr>
           <tr><td><code>--no-qr</code></td><td>Don't print the QR code.</td></tr>
           <tr><td><code>tui2web set-password</code></td><td>Set a password so you can open sessions without the link.</td></tr>
           <tr><td><code>--no-password</code></td><td>For this session, only accept the link's token.</td></tr>

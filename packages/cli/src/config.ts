@@ -10,6 +10,8 @@ const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 export type Config = {
   relay?: string;
   password?: PasswordHash;
+  /** Key that shows the link again, e.g. "ctrl-\\" (default) or "none". */
+  hotkey?: string;
 };
 
 export function loadConfig(): Config {

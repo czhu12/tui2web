@@ -43,12 +43,12 @@ npm run relay            # relay on :8787  (PORT, HOST, PUBLIC_URL env vars)
 node packages/cli/src/index.ts bash     # in another terminal
 node scripts/e2e.mjs     # end-to-end test against the running relay
 node scripts/restart.mjs # session survives a relay restart (starts its own relay)
-node scripts/countdown.mjs # pre-start countdown behaviour
+node scripts/startup.mjs  # Enter-to-start screen, Ctrl+\\ link hotkey, tui2web ls
 ```
 
 To test on your phone over Wi-Fi, run the relay with `PUBLIC_URL=http://<your-LAN-ip>:8787`.
 
-CLI options: `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--wait <secs>` / `--no-wait` (the link is shown for 10s before the command starts, because full-screen TUIs clear it).
+CLI options: `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--no-wait`, `--hotkey <key>`. The link stays on screen until you press Enter, because full-screen TUIs clear it. After that, Ctrl+\\ shows it again and `tui2web ls` lists running sessions.
 
 ## Running the relay in Docker
 
