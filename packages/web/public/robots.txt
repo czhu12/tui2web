@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+# Session pages are private.
+Disallow: /session/
+
+Sitemap: https://tui2web.com/sitemap.xml

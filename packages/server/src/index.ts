@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { CLOSE_NOT_FOUND, CLOSE_UNAUTHORIZED, type AgentToRelay, type RelayToAgent } from '@tui2web/protocol';
 import { authCookie, hasValidCookie, isAcceptablePasswordHash, isSameOrigin, safeEqual, verifyPassword } from './auth.ts';
-import { loginPage, messagePage } from './pages.ts';
+import { loginPage, messagePage, setSiteUrl } from './pages.ts';
 import { clampSize, isValidIdentity, SessionStore, type Session } from './sessions.ts';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -13,10 +13,23 @@ const HOST = process.env.HOST ?? '0.0.0.0';
 const PUBLIC_URL = (process.env.PUBLIC_URL ?? `http://localhost:${PORT}`).replace(/\/+$/, '');
 const WEB_DIST = process.env.WEB_DIST ?? fileURLToPath(new URL('../../web/dist/', import.meta.url));
 
+setSiteUrl(PUBLIC_URL);
+
 const store = new SessionStore();
 const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
 
 const SESSION_PATH = /^\/session\/([A-Za-z0-9_-]{16,64})(\/login|\/ws)?\/?$/;
+
+/** Files from the web build served at the site root (crawlers and link previews expect them there). */
+const ROOT_FILES: Record<string, string> = {
+  '/robots.txt': '/robots.txt',
+  '/sitemap.xml': '/sitemap.xml',
+  '/og.png': '/og.png',
+  '/favicon.svg': '/favicon.svg',
+  '/favicon-32.png': '/favicon-32.png',
+  '/favicon.ico': '/favicon-32.png',
+  '/apple-touch-icon.png': '/apple-touch-icon.png',
+};
 
 // ---- HTTP -------------------------------------------------------------------
 
@@ -35,8 +48,23 @@ async function handleHttp(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
 
+  // One canonical host for search engines: www.tui2web.com -> tui2web.com.
+  const host = req.headers.host ?? '';
+  if (host.startsWith('www.')) {
+    res.writeHead(301, { Location: `${isHttps(req) ? 'https' : 'http'}://${host.slice(4)}${req.url ?? '/'}` });
+    return res.end();
+  }
+
+  const rootFile = ROOT_FILES[url.pathname];
+  // Only the homepage belongs in search results; never session pages.
+  if (url.pathname !== '/' && !rootFile) res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+
   if (url.pathname === '/') {
     return serveStatic(res, '/landing.html');
+  }
+  if (rootFile && (req.method === 'GET' || req.method === 'HEAD')) {
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return serveStatic(res, rootFile);
   }
   if (url.pathname === '/healthz') {
     const mem = process.memoryUsage();
@@ -113,6 +141,8 @@ const MIME: Record<string, string> = {
   '.png': 'image/png',
   '.woff2': 'font/woff2',
   '.json': 'application/json',
+  '.txt': 'text/plain; charset=utf-8',
+  '.xml': 'application/xml; charset=utf-8',
 };
 
 async function serveStatic(res: ServerResponse, pathname: string) {

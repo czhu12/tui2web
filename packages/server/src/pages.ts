@@ -1,5 +1,12 @@
 // Small server-rendered pages: login, and "not found / ended" messages.
 
+let siteUrl = 'http://localhost:8787';
+
+/** Absolute base URL, needed for link-preview image tags. */
+export function setSiteUrl(url: string) {
+  siteUrl = url;
+}
+
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 }
@@ -12,7 +19,15 @@ function layout(title: string, body: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
 <title>${escapeHtml(title)} · tui2web</title>
+<meta property="og:site_name" content="tui2web">
+<meta property="og:title" content="tui2web terminal session">
+<meta property="og:description" content="A private link to a live terminal session. Open it to view and control the terminal.">
+<meta property="og:image" content="${siteUrl}/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
   :root { --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #3fb950; --danger: #f85149; }
   * { box-sizing: border-box; }

@@ -5,13 +5,112 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#0d1117" />
-    <title>tui2web: your terminal, on your phone</title>
-    <meta name="description" content="Run Claude Code, opencode or any terminal app on your computer and keep using it from your phone. One command, one link." />
-    <meta property="og:title" content="tui2web: your terminal, on your phone" />
-    <meta property="og:description" content="Run Claude Code, opencode or any terminal app on your computer and keep using it from your phone. One command, one link." />
-    <meta property="og:url" content="https://tui2web.com" />
+    <title>tui2web: use Claude Code and any terminal app from your phone</title>
+    <meta name="description" content="Run Claude Code, opencode or any terminal app on your computer and control it from your phone's browser. No port forwarding. Free and open source." />
+    <link rel="canonical" href="https://tui2web.com/" />
+    <meta name="robots" content="index, follow" />
+
     <meta property="og:type" content="website" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230d1117'/%3E%3Cpath d='M8 11l6 5-6 5' stroke='%233fb950' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M16 22h8' stroke='%23e6edf3' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E" />
+    <meta property="og:site_name" content="tui2web" />
+    <meta property="og:url" content="https://tui2web.com/" />
+    <meta property="og:title" content="tui2web: your terminal, on your phone" />
+    <meta property="og:description" content="Run Claude Code, opencode or any terminal app on your computer and pick it up from your phone. One command, one link." />
+    <meta property="og:image" content="https://tui2web.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="tui2web: a Claude Code session shown on a phone, started with npx tui2web claude" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="tui2web: your terminal, on your phone" />
+    <meta name="twitter:description" content="Run Claude Code, opencode or any terminal app on your computer and pick it up from your phone." />
+    <meta name="twitter:image" content="https://tui2web.com/og.png" />
+    <meta name="twitter:image:alt" content="tui2web: a Claude Code session shown on a phone" />
+
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "tui2web",
+        "url": "https://tui2web.com/",
+        "description": "Open-source CLI that shares any terminal app, such as Claude Code or opencode, to your phone's browser through a private link.",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux, Windows",
+        "license": "https://opensource.org/licenses/MIT",
+        "downloadUrl": "https://www.npmjs.com/package/tui2web",
+        "installUrl": "https://www.npmjs.com/package/tui2web",
+        "softwareRequirements": "Node.js 20 or newer",
+        "image": "https://tui2web.com/og.png",
+        "sameAs": ["https://github.com/czhu12/tui2web", "https://www.npmjs.com/package/tui2web"],
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "How do I use Claude Code from my phone?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Install tui2web with npm install -g tui2web, then start Claude Code through it: tui2web claude. It prints a private link and a QR code. Scan it with your phone and you get the same live Claude Code session in your phone's browser, with extra keys like Esc, Tab and ⇧Tab."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Do I need SSH, a VPN or port forwarding?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No. Your computer makes an outbound connection to the relay, like ngrok does, so it works from home Wi-Fi, office networks and behind NAT without opening any ports or installing an SSH server."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How is this different from SSH-ing in from my phone?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "With SSH you start a new, separate shell. tui2web shares the session that's already running on your computer, and both screens stay in sync. You can start Claude Code at your desk, carry on from your phone, and come back to find your laptop terminal exactly where the conversation is. It also works in any mobile browser, with no SSH app or keys."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which apps does it work with?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Anything that runs in a terminal: Claude Code, opencode, aider, Codex CLI, vim, htop, or a plain shell. Full-screen apps work too. Press Ctrl+\\ at any time to bring the link back."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is it secure?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, you can self-host the relay with one Docker image."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "What happens if my connection drops?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "The session reconnects on its own and the screen comes back as it was, including when the relay restarts. The app itself runs on your computer, so the computer needs to stay on and awake."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is tui2web free?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. tui2web is free and open source under the MIT license. The code for the CLI, the relay and the web viewer is on GitHub."
+      }
+    }
+  ]
+}
+    </script>
     <style>
       :root {
         --bg: #0d1117;
@@ -138,6 +237,17 @@
       td code { font-size: 14px; color: var(--text); white-space: nowrap; }
       td:last-child { color: var(--muted); }
 
+
+      /* ---- FAQ ---- */
+      .faq { display: grid; gap: 10px; }
+      .faq details { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 12px; padding: 0 20px; }
+      .faq summary { cursor: pointer; padding: 16px 0; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 16px; }
+      .faq summary::-webkit-details-marker { display: none; }
+      .faq summary::after { content: "+"; color: var(--muted); font-weight: 400; font-size: 20px; line-height: 1; }
+      .faq details[open] summary::after { content: "−"; }
+      .faq details p { margin: 0 0 18px; color: var(--muted); }
+      .faq code { color: var(--text); font-size: 14px; }
+
       footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
       footer nav { padding: 0; gap: 20px; display: flex; }
 
@@ -167,6 +277,7 @@
         <div class="nav-links">
           <a href="#how" class="hide-sm">How it works</a>
           <a href="#security" class="hide-sm">Security</a>
+          <a href="#faq" class="hide-sm">FAQ</a>
           <a href="https://github.com/czhu12/tui2web">GitHub</a>
           <a href="https://www.npmjs.com/package/tui2web">npm</a>
         </div>
@@ -348,6 +459,40 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           <tr><td><code>--no-password</code></td><td>For this session, only accept the link's token.</td></tr>
           <tr><td><code>--relay &lt;url&gt;</code></td><td>Use your own relay (or set <code>TUI2WEB_RELAY</code>).</td></tr>
         </table>
+      </section>
+
+      <section id="faq">
+        <h2>FAQ</h2>
+        <div class="faq">
+          <details>
+            <summary>How do I use Claude Code from my phone?</summary>
+            <p>Install tui2web with <code>npm install -g tui2web</code>, then start Claude Code through it: <code>tui2web claude</code>. It prints a private link and a QR code. Scan it with your phone and you get the same live Claude Code session in your phone's browser, with extra keys like Esc, Tab and ⇧Tab.</p>
+          </details>
+          <details>
+            <summary>Do I need SSH, a VPN or port forwarding?</summary>
+            <p>No. Your computer makes an outbound connection to the relay, like ngrok does, so it works from home Wi-Fi, office networks and behind NAT without opening any ports or installing an SSH server.</p>
+          </details>
+          <details>
+            <summary>How is this different from SSH-ing in from my phone?</summary>
+            <p>With SSH you start a new, separate shell. tui2web shares the session that's already running on your computer, and both screens stay in sync. You can start Claude Code at your desk, carry on from your phone, and come back to find your laptop terminal exactly where the conversation is. It also works in any mobile browser, with no SSH app or keys.</p>
+          </details>
+          <details>
+            <summary>Which apps does it work with?</summary>
+            <p>Anything that runs in a terminal: Claude Code, opencode, aider, Codex CLI, vim, htop, or a plain shell. Full-screen apps work too. Press Ctrl+\ at any time to bring the link back.</p>
+          </details>
+          <details>
+            <summary>Is it secure?</summary>
+            <p>Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, you can self-host the relay with one Docker image.</p>
+          </details>
+          <details>
+            <summary>What happens if my connection drops?</summary>
+            <p>The session reconnects on its own and the screen comes back as it was, including when the relay restarts. The app itself runs on your computer, so the computer needs to stay on and awake.</p>
+          </details>
+          <details>
+            <summary>Is tui2web free?</summary>
+            <p>Yes. tui2web is free and open source under the MIT license. The code for the CLI, the relay and the web viewer is on GitHub.</p>
+          </details>
+        </div>
       </section>
 
       <footer>
