@@ -2,3 +2,7 @@ node_modules/
 dist/
 .DS_Store
 .globaltest/
+
+# Promo video: renders, and licensed music (Pixabay forbids redistributing the audio on its own)
+promo/out/
+promo/music.*

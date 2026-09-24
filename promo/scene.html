@@ -1,0 +1,309 @@
+<!doctype html>
+<!--
+  tui2web promo video. Every frame is a pure function of time: window.seek(t)
+  draws the frame at t seconds. render.mjs captures it at 30fps.
+  Preview a frame: open scene.html?format=vertical&t=8.6
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --bg: #0d1117; --raised: #161b22; --inset: #010409; --border: #30363d; --key: #21262d;
+    --text: #e6edf3; --muted: #8b949e; --accent: #3fb950; --purple: #d2a8ff;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { overflow: hidden; }
+  body {
+    position: relative; color: var(--text); font-family: var(--sans);
+    background:
+      radial-gradient(900px 600px at 85% 15%, rgba(63, 185, 80, 0.14), transparent 60%),
+      radial-gradient(800px 500px at 0% 100%, rgba(57, 197, 207, 0.08), transparent 60%),
+      var(--bg);
+  }
+  body.landscape { width: 1920px; height: 1080px; }
+  body.vertical { width: 1080px; height: 1920px; }
+  .abs { position: absolute; }
+
+  /* ---- laptop terminal ---- */
+  #laptop { background: var(--inset); border: 2px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 30px 90px rgba(0,0,0,.55); }
+  .landscape #laptop { left: 110px; top: 150px; width: 1060px; height: 700px; }
+  .vertical #laptop { left: 50px; top: 250px; width: 980px; height: 620px; }
+  .winbar { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 18px; background: var(--raised); border-bottom: 1px solid var(--border); }
+  .winbar i { width: 14px; height: 14px; border-radius: 50%; background: #484f58; }
+  .winbar span { margin-left: 12px; color: var(--muted); font: 16px var(--sans); }
+  #laptop-term { padding: 22px 26px; font-family: var(--mono); white-space: pre; height: calc(100% - 46px); overflow: hidden; }
+  /* In the Claude Code view, lines stack from the bottom; older ones scroll off the top. */
+  #laptop-term.session { display: flex; flex-direction: column; justify-content: flex-end; padding-bottom: 18px; }
+  .landscape #laptop-term { font-size: 21px; line-height: 1.5; }
+  .vertical #laptop-term { font-size: 18px; line-height: 1.5; }
+  #laptop-dim { inset: 46px 0 0 0; background: rgba(1, 4, 9, 0.62); display: flex; align-items: center; justify-content: center; }
+  #laptop-dim div { font: 600 30px var(--sans); color: var(--text); background: rgba(22,27,34,.9); border: 1px solid var(--border); padding: 16px 28px; border-radius: 999px; }
+
+  /* ---- phone ---- */
+  #phone { background: #000; border: 2px solid #3d444d; border-radius: 58px; padding: 16px; box-shadow: 0 40px 100px rgba(0,0,0,.6); }
+  .landscape #phone { left: 1290px; top: 85px; width: 460px; height: 930px; }
+  .vertical #phone { left: 290px; top: 930px; width: 500px; height: 960px; }
+  .screen { position: relative; height: 100%; border-radius: 44px; overflow: hidden; background: var(--bg); }
+  .layer { position: absolute; inset: 0; display: flex; flex-direction: column; }
+
+  /* camera */
+  #camera { background: radial-gradient(circle at 50% 45%, #1d2530, #06080b 70%); align-items: center; justify-content: center; gap: 26px; }
+  #viewfinder { position: relative; width: 250px; height: 250px; }
+  #viewfinder i { position: absolute; width: 56px; height: 56px; border: 6px solid #fff; }
+  #viewfinder i:nth-child(1) { left: 0; top: 0; border-right: 0; border-bottom: 0; border-radius: 16px 0 0 0; }
+  #viewfinder i:nth-child(2) { right: 0; top: 0; border-left: 0; border-bottom: 0; border-radius: 0 16px 0 0; }
+  #viewfinder i:nth-child(3) { left: 0; bottom: 0; border-right: 0; border-top: 0; border-radius: 0 0 0 16px; }
+  #viewfinder i:nth-child(4) { right: 0; bottom: 0; border-left: 0; border-top: 0; border-radius: 0 0 16px 0; }
+  #viewfinder pre { position: absolute; inset: 34px; display: grid; place-items: center; font: 11px/1 var(--mono); color: #fff; background: #fff0; }
+  #scan-hint { font: 500 20px var(--sans); color: #c9d1d9; }
+  #open-pill { font: 600 20px var(--sans); color: #000; background: #ffd33d; padding: 12px 22px; border-radius: 999px; }
+
+  /* viewer */
+  #viewer .bar { display: flex; align-items: center; gap: 10px; padding: 50px 22px 14px; background: var(--raised); border-bottom: 1px solid var(--border); font: 17px var(--mono); }
+  #viewer .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--accent); }
+  #phone-term { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 14px 16px 8px; font-family: var(--mono); white-space: pre; }
+  .landscape #phone-term { font-size: 15px; line-height: 1.5; }
+  .vertical #phone-term { font-size: 16px; line-height: 1.5; }
+  .keys { display: flex; gap: 6px; padding: 10px 10px 14px; background: var(--raised); border-top: 1px solid var(--border); }
+  .keys span, .pad span { display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; background: var(--key); font: 15px var(--sans); }
+  .keys span { flex: none; height: 42px; padding: 0 11px; }
+  .pad { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; padding: 12px 12px 18px; background: var(--raised); border-top: 1px solid var(--border); }
+  .pad span { height: 60px; font-size: 21px; }
+  .pad span.wide { grid-column: span 2; }
+  .pad span.pressed { background: #2ea043; border-color: #3fb950; color: #fff; }
+  #tap { width: 74px; height: 74px; border-radius: 50%; background: rgba(255,255,255,.35); border: 3px solid rgba(255,255,255,.8); pointer-events: none; }
+
+  /* terminal colours */
+  .b { font-weight: 700; } .d { color: var(--muted); } .g { color: var(--accent); } .c { color: var(--purple); }
+  .sel { color: #58a6ff; }
+  .qr { display: inline-block; line-height: 1; font-size: .78em; margin: 4px 0 10px; }
+  .input { border-top: 1px solid #484f58; border-bottom: 1px solid #484f58; padding: 4px 0; margin-top: 10px; }
+  .status { color: var(--purple); font-size: .8em; padding-top: 4px; }
+
+  /* ---- captions & end card ---- */
+  #caption { left: 0; right: 0; text-align: center; font-weight: 700; letter-spacing: -0.02em; text-shadow: 0 4px 30px rgba(0,0,0,.7); }
+  .landscape #caption { top: 920px; font-size: 54px; width: 1180px; }
+  .vertical #caption { top: 80px; font-size: 64px; padding: 0 60px; line-height: 1.12; }
+  #caption span { color: var(--accent); }
+  #end { inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px; background: var(--bg);
+    background: radial-gradient(900px 600px at 50% 40%, rgba(63, 185, 80, 0.16), transparent 65%), var(--bg); }
+  #end .logo { display: flex; align-items: center; gap: 22px; font: 700 64px var(--mono); }
+  #end .logo svg { width: 90px; height: 90px; }
+  #end h1 { font-size: 88px; letter-spacing: -0.03em; text-align: center; line-height: 1.05; }
+  #end h1 span { color: var(--accent); }
+  #end .cmd { font: 44px var(--mono); background: var(--inset); border: 2px solid var(--border); border-radius: 18px; padding: 22px 38px; }
+  #end .cmd b { color: var(--accent); font-weight: 400; }
+  #end .url { font: 600 40px var(--sans); color: var(--muted); }
+  .vertical #end h1 { font-size: 96px; }
+</style>
+</head>
+<body>
+  <div id="laptop" class="abs">
+    <div class="winbar"><i></i><i></i><i></i><span>~/code/shop — zsh</span></div>
+    <div id="laptop-term"></div>
+    <div id="laptop-dim" class="abs"><div>Away from your desk</div></div>
+  </div>
+
+  <div id="phone" class="abs">
+    <div class="screen">
+      <div id="camera" class="layer">
+        <div id="viewfinder"><i></i><i></i><i></i><i></i><pre id="vf-qr"></pre></div>
+        <div id="scan-hint">Point at the QR code</div>
+        <div id="open-pill">Open “tui2web.com”</div>
+      </div>
+      <div id="viewer" class="layer">
+        <div class="bar"><span class="dot"></span>claude</div>
+        <div id="phone-term"></div>
+        <div class="keys" id="keyrow"><span>Esc</span><span>Tab</span><span>Ctrl</span><span>↑</span><span>↓</span><span>⇧Tab</span><span>^C</span></div>
+        <div class="pad" id="pad">
+          <span id="key1">1</span><span>2</span><span>3</span><span>Esc</span><span>^C</span>
+          <span>y</span><span>↑</span><span>n</span><span>Tab</span><span>⇧Tab</span>
+          <span>←</span><span>↓</span><span>→</span><span class="wide">Enter</span>
+        </div>
+      </div>
+      <div id="tap" class="abs"></div>
+    </div>
+  </div>
+
+  <div id="caption" class="abs"></div>
+
+  <div id="end" class="abs">
+    <div class="logo">
+      <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#161b22" stroke="#30363d"/><path d="M8 11l6 5-6 5" stroke="#3fb950" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 22h8" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/></svg>
+      tui2web
+    </div>
+    <h1>Your terminal,<br><span>on your phone.</span></h1>
+    <div class="cmd"><b>$</b> npx tui2web claude</div>
+    <div class="url">tui2web.com · free &amp; open source</div>
+  </div>
+
+<script>
+const params = new URLSearchParams(location.search);
+const FORMAT = params.get('format') === 'vertical' ? 'vertical' : 'landscape';
+document.body.className = FORMAT;
+const $ = (id) => document.getElementById(id);
+
+// Real QR code for https://tui2web.com, in the CLI's own format.
+const QR = `▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
+█ ▄▄▄▄▄ █▀█ █▄ ▀▀ █ ▄▄▄▄▄ █
+█ █   █ █▀▀▀█ ▀ ▀██ █   █ █
+█ █▄▄▄█ █▀ █▀▀▄▀▀▄█ █▄▄▄█ █
+█▄▄▄▄▄▄▄█▄▀ ▀▄█ █ █▄▄▄▄▄▄▄█
+█  ▄▄ ▀▄▄ ▄▀▄▀▀███ █ █▄█ ██
+██▀ ▄█ ▄███▄█▀ ▄▄█  ▀█▄█▄ █
+█▀█▀▀ ▀▄▀█▄▄█▄█▄▄▀▄▄ ▄▀▄ ▄█
+█ ██▀▄ ▄ ▄   ▄█▀  ▀▀  ▄█▄ █
+█▄█▄▄█▄▄▄ ▄█▄▀▀▀  ▄▄▄ ▀▄███
+█ ▄▄▄▄▄ █▄█ █▀ ▄█ █▄█ ▀▄ ▄█
+█ █   █ █ ▄ █▄█▄▄ ▄ ▄ ▀ ▀ █
+█ █▄▄▄█ █ ██ ▄█▀█▀▄▀▀▀ ▄█ █
+█▄▄▄▄▄▄▄█▄█▄▄███████▄▄▄▄▄▄█`;
+$('vf-qr').textContent = QR;
+
+// ---- timeline helpers ----
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const ease = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
+const ramp = (t, start, dur) => ease((t - start) / dur);                          // 0 -> 1
+const window_ = (t, a, b, fade = 0.35) => Math.min(ramp(t, a, fade), 1 - ramp(t, b - fade, fade)); // fade in, hold, fade out
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const cursor = (t) => (Math.floor(t * 2) % 2 === 0 ? '█' : ' ');
+
+// Word-wraps text to `width` columns, indenting continuation lines like Claude Code.
+function wrap(text, width, indent) {
+  const words = text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const limit = lines.length ? width - indent : width;
+    if (line && (line + ' ' + w).length > limit) { lines.push(line); line = w; }
+    else line = line ? line + ' ' + w : w;
+  }
+  lines.push(line);
+  return lines.map((l, i) => (i ? ' '.repeat(indent) + l : l));
+}
+
+// ---- the shared Claude Code session (same on laptop and phone) ----
+function claude(t, width) {
+  const out = [];
+  const say = (text, cls = '', bullet = '●', bulletCls = 'c') => {
+    wrap(text, width - 2, 0).forEach((l, i) => out.push((i ? '  ' : `<span class="${bulletCls}">${bullet}</span> `) + `<span class="${cls}">${esc(l)}</span>`));
+    out.push('');
+  };
+  const user = (text) => {
+    wrap(text, width - 2, 0).forEach((l, i) => out.push((i ? '  ' : '<span class="d">&gt;</span> ') + esc(l)));
+    out.push('');
+  };
+  const tool = (name, arg, result, resultCls = 'd') => {
+    out.push(`<span class="c">●</span> <span class="g">${name}</span>(${esc(arg)})`);
+    if (result) out.push(`  <span class="${resultCls}">⎿ ${esc(result)}</span>`);
+    out.push('');
+  };
+
+  out.push('<span class="c">✻</span> Welcome back!', '');
+  user('fix the flaky upload test');
+  say('Fixed: it awaited the wrong promise. All 18 upload tests pass now.');
+  user('the login page is slow on mobile, can you look into it?');
+  tool('Read', 'src/routes/login.ts', 'Read 84 lines');
+  say('Each request looks the session up in the database. I\'ll cache it in memory.', '');
+  if (t < 9.0) {
+    out.push('<span class="c">●</span> <span class="g">Update</span>(src/routes/login.ts)');
+    out.push('  Do you want to make this edit?');
+    const pressed = t >= 8.55;
+    out.push(`  <span class="sel">❯ 1. Yes</span>`);
+    out.push(`    2. No, tell Claude what to do`);
+    if (pressed) out[out.length - 2] = `  <span class="g">❯ 1. Yes</span>`;
+  } else {
+    tool('Update', 'src/routes/login.ts', 'Added 12 lines, removed 3');
+    if (t >= 10.0) tool('Bash', 'npm test', t >= 11.0 ? '42 passed' : 'Running…', t >= 11.0 ? 'g' : 'd');
+    if (t >= 12.0) say('Done. p95 is down from 1,840ms to 210ms.');
+  }
+  // input box and status line
+  out.push(`<div class="input"><span class="d">&gt;</span> ${t >= 4.6 ? cursor(t) : ''}</div>`);
+  out.push(`<div class="status">⏵⏵ accept edits on</div>`);
+  return out;
+}
+
+function laptop(t) {
+  const cmd = 'tui2web claude';
+  if (t < 1.8) {
+    const typed = cmd.slice(0, Math.floor(clamp((t - 0.4) / 1.1) * cmd.length));
+    return `<span class="g">$</span> ${typed}${cursor(t)}`;
+  }
+  if (t < 4.6) {
+    return [
+      `<span class="g">$</span> ${cmd}`,
+      '',
+      '<span class="b">tui2web</span> session is live:',
+      '',
+      '  <span class="b">https://tui2web.com/session/L9-7mXweW0Y…</span>',
+      '',
+      `<span class="qr">${QR}</span>`,
+      '<span class="d">Anyone with this link can control this terminal.</span>',
+      '',
+      `Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to cancel)</span>${t > 2.2 ? cursor(t) : ''}`,
+    ].join('\n');
+  }
+  return claude(t, FORMAT === 'landscape' ? 70 : 88).map((l) => (l.startsWith('<div') ? l : `<div>${l || ' '}</div>`)).join('');
+}
+
+function phone(t) {
+  return claude(t, FORMAT === 'landscape' ? 38 : 40).map((l) => (l.startsWith('<div') ? l : `<div>${l || ' '}</div>`)).join('');
+}
+
+const CAPTIONS = [
+  [0.3, 3.5, 'Put <span>tui2web</span> in front of any command.'],
+  [3.8, 6.6, 'Your terminal, <span>on your phone.</span>'],
+  [6.8, 9.8, 'Claude needs you? <span>Answer from anywhere.</span>'],
+  [10.0, 14.8, 'Bathroom break? <span>Bring Claude with you.</span>'],
+];
+
+window.DURATION = 20;
+window.seek = function (t) {
+  // Laptop
+  $('laptop-term').innerHTML = laptop(t);
+  $('laptop-term').classList.toggle('session', t >= 4.6);
+  $('laptop-dim').style.opacity = window_(t, 6.9, 14.9, 0.5);
+  $('laptop').style.opacity = 1 - ramp(t, 14.6, 0.5);
+
+  // Phone: slides in, scans, then shows the session
+  const inY = (1 - ramp(t, 2.9, 0.8)) * 110;
+  $('phone').style.transform = `translateY(${inY}%)`;
+  $('phone').style.opacity = 1 - ramp(t, 14.6, 0.5);
+  $('camera').style.opacity = t < 4.6 ? 1 : 1 - ramp(t, 4.6, 0.25);
+  $('scan-hint').style.opacity = 1 - ramp(t, 4.0, 0.2);
+  $('open-pill').style.opacity = ramp(t, 4.05, 0.2);
+  $('open-pill').style.transform = `scale(${0.9 + 0.1 * ramp(t, 4.05, 0.2)})`;
+  $('viewer').style.opacity = ramp(t, 4.6, 0.25);
+  $('phone-term').innerHTML = phone(t);
+
+  // Key row -> key pad for answering the prompt, with a tap on "1"
+  const pad = t >= 7.4 && t < 9.6;
+  $('keyrow').style.display = pad ? 'none' : 'flex';
+  $('pad').style.display = pad ? 'grid' : 'none';
+  $('key1').classList.toggle('pressed', t >= 8.5 && t < 8.9);
+  const tap = document.getElementById('tap');
+  const k = $('key1').getBoundingClientRect(), s = document.querySelector('.screen').getBoundingClientRect();
+  tap.style.left = `${k.left - s.left + k.width / 2 - 37}px`;
+  tap.style.top = `${k.top - s.top + k.height / 2 - 37}px`;
+  const tapIn = pad ? window_(t, 8.1, 9.1, 0.25) : 0;
+  tap.style.opacity = tapIn;
+  tap.style.transform = `scale(${t >= 8.45 && t < 8.75 ? 0.82 : 1})`;
+
+  // Captions
+  let cap = '', op = 0;
+  for (const [a, b, text] of CAPTIONS) if (t >= a - 0.01 && t < b) { cap = text; op = window_(t, a, b, 0.35); }
+  $('caption').innerHTML = cap;
+  $('caption').style.opacity = op;
+
+  // End card
+  $('end').style.opacity = ramp(t, 15.0, 0.6);
+  $('end').style.transform = `scale(${0.97 + 0.03 * ramp(t, 15.0, 0.8)})`;
+};
+
+window.seek(Number(params.get('t') ?? 0));
+</script>
+</body>
+</html>
