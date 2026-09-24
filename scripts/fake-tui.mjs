@@ -4,7 +4,7 @@ const out = process.stdout;
 let count = 0;
 let last = '-';
 const draw = () => out.write(`\x1b[H\x1b[2JFAKE-TUI count=${count} last=${last}\r\n(q to quit)`);
-out.write('\x1b[?1049h\x1b[?1000h');
+out.write('\x1b[?1049h\x1b[?1000;1006h');
 draw();
 process.stdin.setRawMode(true);
 process.stdin.on('data', (d) => {

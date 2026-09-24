@@ -5,6 +5,7 @@ import { hashPassword, loadConfig, promptHidden, saveConfig } from './config.ts'
 import { RelayLink } from './link.ts';
 import { DEFAULT_HOTKEY, extractHotkey, isNotAKeyPress, parseHotkey, type Hotkey } from './hotkey.ts';
 import { ScreenMirror } from './mirror.ts';
+import { MouseModes } from './mouse.ts';
 import { listSessions, registerSession } from './registry.ts';
 import { resolveCommand } from './resolve.ts';
 import { pty } from './pty.ts';
@@ -162,13 +163,15 @@ async function main() {
   // repainted from the mirror, which has kept up the whole time.
   let overlay: 'off' | 'on' | 'restoring' = 'off';
   let heldOutput: string[] = [];
+  const mouse = new MouseModes();
   const { stdin, stdout } = process;
 
   const openOverlay = () => {
     overlay = 'on';
     const lines = [...banner, '', `\x1b[2mPress any key to return to ${file}.\x1b[0m`].slice(0, Math.max(1, local().rows - 1));
-    // Reset attributes and any scroll region so the overlay draws cleanly.
-    stdout.write('\x1b[0m\x1b[r\x1b[H\x1b[2J' + lines.join('\r\n'));
+    // Reset attributes and any scroll region so the overlay draws cleanly, and
+    // turn off mouse reporting so the link can be selected and copied.
+    stdout.write(mouse.disableSequence() + '\x1b[0m\x1b[r\x1b[H\x1b[2J' + lines.join('\r\n'));
   };
 
   const closeOverlay = async () => {
@@ -178,7 +181,7 @@ async function main() {
     // alternate one. The terminal is already there, so keep only the latter.
     const alt = screen.lastIndexOf('\x1b[?1049h');
     if (alt >= 0) screen = screen.slice(alt + '\x1b[?1049h'.length);
-    stdout.write('\x1b[0m\x1b[H\x1b[2J' + screen + heldOutput.join(''));
+    stdout.write('\x1b[0m\x1b[H\x1b[2J' + screen + mouse.restoreSequence() + heldOutput.join(''));
     heldOutput = [];
     overlay = 'off';
     // Most TUIs redraw fully on SIGWINCH, which also restores anything the
@@ -187,6 +190,7 @@ async function main() {
   };
 
   term.onData((data) => {
+    mouse.observe(data);
     if (overlay === 'off') stdout.write(data);
     else if (overlay === 'restoring') heldOutput.push(data);
     mirror.write(data);

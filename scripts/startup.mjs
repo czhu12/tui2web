@@ -73,9 +73,12 @@ await sleep(300);
 const afterA = await appLine(s);
 check('app receives normal keys', afterA === 'FAKE-TUI count=1 last="a"', afterA);
 
+check('app has mouse reporting on before the overlay', s.screen.modes.mouseTrackingMode === 'vt200', s.screen.modes.mouseTrackingMode);
 s.cli.write('\x1c'); // Ctrl+\
 await sleep(400);
 let screen = await s.text();
+check('overlay turns mouse reporting off so the link can be selected', s.screen.modes.mouseTrackingMode === 'none', s.screen.modes.mouseTrackingMode);
+const rawAtOverlay = s.raw.length;
 // The link wraps at 90 columns, so look for the session id rather than the whole URL.
 check('Ctrl+\\ shows the link over the app', screen.includes(u.pathname.split('/').pop()) && screen.includes('Press any key to return') && !screen.includes('FAKE-TUI'));
 check('app did not receive the hotkey', !s.raw.slice(-2000).includes('count=2'));
@@ -97,6 +100,8 @@ s.cli.write('z'); // any key closes; it must not reach the app
 await sleep(600);
 check('any key restores the app, including updates made meanwhile', (await appLine(s)) === 'FAKE-TUI count=2 last="p"', await appLine(s));
 check('overlay is gone', !(await s.text()).includes('Press any key to return'));
+check('closing restores the app\'s mouse mode', s.screen.modes.mouseTrackingMode === 'vt200', s.screen.modes.mouseTrackingMode);
+check('closing restores the app\'s mouse encoding (SGR 1006)', /\x1b\[\?[\d;]*1006[\d;]*h/.test(s.raw.slice(rawAtOverlay)));
 
 // Apps like Claude Code turn on the kitty keyboard protocol / modifyOtherKeys,
 // after which terminals send Ctrl+\ as an escape sequence, not 0x1c.
