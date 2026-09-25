@@ -189,6 +189,10 @@
       }
       .copy:hover { color: var(--text); border-color: var(--muted); }
       .copy.done { color: var(--accent); border-color: var(--accent); }
+      @media (max-width: 520px) { .cmd .label { display: none; } }
+      /* Divider between the two alternative run commands */
+      .or { display: flex; align-items: center; gap: 12px; color: var(--muted); font: 12px var(--sans); text-transform: uppercase; letter-spacing: 0.06em; }
+      .or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--border); }
       .install-note { text-align: center; color: var(--muted); font-size: 14px; margin: 14px 0 0; }
       .install-note code { color: var(--text); }
 
@@ -357,11 +361,20 @@
           </div>
           <div class="cmd">
             <span class="prompt" aria-hidden="true">$</span>
-            <code id="cmd-run">tui2web claude --continue</code>
+            <code id="cmd-run">tui2web claude</code>
+            <span class="label">Via tui2web.com</span>
             <button class="copy" type="button" data-copy="cmd-run">Copy</button>
+          </div>
+          <div class="or" aria-hidden="true">or</div>
+          <div class="cmd">
+            <span class="prompt" aria-hidden="true">$</span>
+            <code id="cmd-private">tui2web --tailscale claude</code>
+            <span class="label" title="Your computer runs the relay; only your Tailscale devices can open the link">Fully private</span>
+            <button class="copy" type="button" data-copy="cmd-private">Copy</button>
           </div>
         </div>
         <p class="install-note">
+          With <code>--tailscale</code>, nothing goes through our servers: your computer runs the relay, and only your <a href="https://tailscale.com">Tailscale</a> devices can open the link.<br />
           Or try it without installing: <code>npx tui2web claude</code>. Requires Node.js 16+ on macOS, Linux or Windows.
         </p>
 
