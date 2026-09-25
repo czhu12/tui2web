@@ -542,6 +542,7 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           <tr><td><code>tui2web ls</code></td><td>List your running sessions and their links, from any terminal.</td></tr>
           <tr><td><code>tui2web set-password</code></td><td>Set a password for opening your sessions without the link, handy when typing the URL on your phone. Only a hash is stored.</td></tr>
           <tr><td><code>tui2web clear-password</code></td><td>Remove the password. Sessions then only open with the link.</td></tr>
+          <tr><td><code>tui2web use tailscale</code></td><td>Keep every session private on your <a href="https://tailscale.com">Tailscale</a> network by default. <code>tui2web use public</code> switches back.</td></tr>
           <tr><td><code>tui2web relay</code></td><td>Run your own relay. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-hosting guide</a>.</td></tr>
           <tr class="group"><th colspan="2">While it’s running</th></tr>
           <tr><td><span class="shortcut"><kbd>Ctrl</kbd>+<kbd>\</kbd></span></td><td>Show the link and QR code again. Press any key to go back.</td></tr>
@@ -550,6 +551,7 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           <tr><td><code>--hotkey &lt;key&gt;</code></td><td>Change the <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>\</kbd></span> key, for example <code>ctrl-^</code> or <code>ctrl-g</code>, or turn it off with <code>none</code>.</td></tr>
           <tr><td><code>--no-password</code></td><td>For this session, only accept the link’s token, even if you’ve set a password.</td></tr>
           <tr><td><code>--no-qr</code></td><td>Don’t print the QR code.</td></tr>
+          <tr><td><code>--tailscale</code></td><td>Keep this session private: your computer runs the relay, and only your Tailscale devices can open the link.</td></tr>
           <tr><td><code>--relay &lt;url&gt;</code></td><td>Use your own relay (or set <code>TUI2WEB_RELAY</code>).</td></tr>
         </table>
       </section>
