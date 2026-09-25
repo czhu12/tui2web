@@ -95,6 +95,7 @@
   .landscape #caption { top: 920px; font-size: 54px; width: 1180px; }
   .vertical #caption { top: 80px; font-size: 64px; padding: 0 60px; line-height: 1.12; }
   #caption span { color: var(--accent); }
+  .landscape #caption br.v { display: none; }
   #end { inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 36px;
     background: radial-gradient(900px 600px at 50% 40%, rgba(63, 185, 80, 0.16), transparent 65%), var(--bg); }
   #end .logo { display: flex; align-items: center; gap: 22px; font: 700 64px var(--mono); }
@@ -319,7 +320,7 @@ function phone(t) {
 const CAPTIONS = [
   [0.3, 3.5, 'Put <span>tui2web</span> in front of any command.'],
   [3.8, beat(6), 'Your terminal, <span>on your phone.</span>'],
-  [beat(6), beat(13), 'Claude builds. <span>You approve from anywhere.</span>'],
+  [beat(6), beat(13), 'Securely sync your<br class="v"> <span>laptop and phone.</span>'],
   [beat(13), END - 0.2, 'Bathroom break? <span>Bring Claude with you.</span>'],
 ];
 
