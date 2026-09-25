@@ -1,7 +1,9 @@
 // Renders promo/scene.html to MP4 in both formats, frame by frame, using the
 // system Chrome (via playwright-core) and ffmpeg.
 //
-//   node promo/render.mjs            # promo/out/tui2web-{landscape,vertical}.mp4
+//   node promo/render.mjs            # promo/out/tui2web-{landscape,vertical}.mp4, plus
+//                                    # smaller web copies and posters for the landing page
+//                                    # in packages/web/public/promo/
 //   node promo/render.mjs --stills   # a few PNG frames per format, for checking
 //
 // If promo/music.mp3 exists it's mixed in (faded in and out). It's git-ignored:
@@ -65,6 +67,23 @@ for (const [format, [width, height]] of Object.entries(FORMATS)) {
   const code = await new Promise((r) => ffmpeg.on('close', r));
   if (code !== 0) throw new Error(`ffmpeg exited with ${code}`);
   console.log(`\r${format}: ${file}${withMusic ? ' (with music)' : ' (no music: add promo/music.mp3)'}`);
+
+  // Lighter copy and a poster frame for the landing page.
+  const web = new URL(`../packages/web/public/promo/`, here);
+  mkdirSync(web, { recursive: true });
+  const scale = format === 'landscape' ? '1280:-2' : '720:-2';
+  await run('ffmpeg', ['-y', '-loglevel', 'error', '-i', file, '-vf', `scale=${scale}`, '-c:v', 'libx264', '-preset', 'slow', '-crf', '26',
+    '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-c:a', 'aac', '-b:a', '128k', new URL(`${format}.mp4`, web).pathname]);
+  await run('ffmpeg', ['-y', '-loglevel', 'error', '-ss', '11.6', '-i', file, '-frames:v', '1', '-vf', `scale=${scale}`, '-q:v', '4',
+    new URL(`${format}.jpg`, web).pathname]);
+  console.log(`${format}: web copy in packages/web/public/promo/`);
 }
 
 await browser.close();
+
+function run(cmd, args) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(cmd, args, { stdio: 'inherit' });
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} exited with ${code}`))));
+  });
+}

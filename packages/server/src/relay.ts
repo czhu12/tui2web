@@ -96,6 +96,11 @@ export function startRelay(opts: RelayOptions): Relay {
       const mb = (n: number) => Math.round(n / 1024 / 1024);
       return send(res, 200, 'text/plain; charset=utf-8', `ok sessions=${store.size} heapMB=${mb(mem.heapUsed)} buffersMB=${mb(mem.arrayBuffers)} rssMB=${mb(mem.rss)}`);
     }
+    // The landing page's promo video and posters.
+    if (url.pathname.startsWith('/promo/') && (req.method === 'GET' || req.method === 'HEAD')) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return serveStatic(res, url.pathname);
+    }
     if (url.pathname.startsWith('/assets/') && req.method === 'GET') {
       return serveStatic(res, url.pathname);
     }
@@ -174,6 +179,8 @@ export function startRelay(opts: RelayOptions): Relay {
     '.json': 'application/json',
     '.txt': 'text/plain; charset=utf-8',
     '.xml': 'application/xml; charset=utf-8',
+    '.mp4': 'video/mp4',
+    '.jpg': 'image/jpeg',
   };
 
   async function serveStatic(res: ServerResponse, pathname: string) {
@@ -181,9 +188,26 @@ export function startRelay(opts: RelayOptions): Relay {
     if (!file.startsWith(normalize(WEB_DIST + sep))) return send(res, 404, 'text/plain; charset=utf-8', 'Not found');
     try {
       const body = await readFile(file);
+      const type = MIME[extname(file)] ?? 'application/octet-stream';
       // Vite fingerprints everything under /assets, so those can be cached forever.
       if (pathname.startsWith('/assets/')) res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-      send(res, 200, MIME[extname(file)] ?? 'application/octet-stream', body);
+      res.setHeader('Accept-Ranges', 'bytes');
+      // Byte ranges: Safari (and iOS) won't play a video without them.
+      const range = /^bytes=(\d*)-(\d*)$/.exec(res.req.headers.range ?? '');
+      if (range && (range[1] || range[2])) {
+        const size = body.length;
+        let start = range[1] ? Number(range[1]) : size - Number(range[2]);
+        let end = range[1] && range[2] ? Number(range[2]) : size - 1;
+        start = Math.max(0, start);
+        end = Math.min(end, size - 1);
+        if (start > end) {
+          res.writeHead(416, { 'Content-Range': `bytes */${size}` });
+          return res.end();
+        }
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${size}`);
+        return send(res, 206, type, body.subarray(start, end + 1));
+      }
+      send(res, 200, type, body);
     } catch {
       const hint = pathname === '/index.html' ? 'Web viewer not built. Run `npm run build` first.' : 'Not found';
       send(res, 404, 'text/plain; charset=utf-8', hint);

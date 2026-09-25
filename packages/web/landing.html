@@ -192,6 +192,12 @@
       .install-note { text-align: center; color: var(--muted); font-size: 14px; margin: 14px 0 0; }
       .install-note code { color: var(--text); }
 
+      /* ---- promo video ---- */
+      .promo { max-width: 960px; margin: 40px auto 0; }
+      .promo video { display: block; width: 100%; aspect-ratio: 16 / 9; border-radius: 14px; border: 1px solid var(--border); background: var(--bg-inset); box-shadow: 0 20px 60px rgba(0,0,0,.45); }
+      .promo.vertical { max-width: 380px; }
+      .promo.vertical video { aspect-ratio: 9 / 16; }
+
       /* ---- demo: laptop terminal + phone ---- */
       .demo { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 28px; align-items: center; margin: 56px 0 24px; }
       .window { background: var(--bg-inset); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.45); }
@@ -331,6 +337,10 @@
         <p class="install-note">
           Or try it without installing: <code>npx tui2web claude</code>. Requires Node.js 16+ on macOS, Linux or Windows.
         </p>
+
+        <div class="promo">
+          <video id="promo" autoplay muted loop playsinline controls preload="metadata" aria-label="tui2web demo: a Figma design built by Claude Code and shipped to production from a phone"></video>
+        </div>
       </header>
 
       <div class="demo" aria-label="Example: the same session on a laptop and a phone">
@@ -558,6 +568,22 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
     </div>
 
     <script>
+      // Promo video: the vertical cut on portrait screens, landscape otherwise;
+      // only the one shown is downloaded. Self-hosted relays don't ship the
+      // video, so fall back to tui2web.com's copy.
+      (() => {
+        const video = document.getElementById('promo');
+        const format = matchMedia('(max-aspect-ratio: 4/5)').matches ? 'vertical' : 'landscape';
+        video.parentElement.classList.toggle('vertical', format === 'vertical');
+        video.poster = `/promo/${format}.jpg`;
+        video.src = `/promo/${format}.mp4`;
+        video.addEventListener('error', () => {
+          if (location.hostname === 'tui2web.com') return;
+          video.poster = `https://tui2web.com/promo/${format}.jpg`;
+          video.src = `https://tui2web.com/promo/${format}.mp4`;
+        }, { once: true });
+      })();
+
       // Copy buttons. Clipboard access can be unavailable (http, old browsers),
       // so fall back to selecting the text for a manual copy.
       document.addEventListener('click', async (e) => {
