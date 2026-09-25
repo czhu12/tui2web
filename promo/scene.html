@@ -104,6 +104,9 @@
   #end .cmd { font: 44px var(--mono); background: var(--inset); border: 2px solid var(--border); border-radius: 18px; padding: 22px 38px; }
   #end .cmd b { color: var(--accent); font-weight: 400; }
   #end .url { font: 600 40px var(--sans); color: var(--muted); }
+  #end .cmd #end-app { color: var(--accent); display: inline-block; min-width: 8ch; text-align: left; }
+  #end .apps { font: 500 34px var(--sans); color: var(--text); text-align: center; line-height: 1.35; margin-top: -8px; }
+  .vertical #end .apps { font-size: 36px; padding: 0 70px; }
   .vertical #end h1 { font-size: 96px; }
 </style>
 </head>
@@ -139,7 +142,8 @@
       tui2web
     </div>
     <h1>Your terminal,<br><span>on your phone.</span></h1>
-    <div class="cmd"><b>$</b> npx tui2web claude</div>
+    <div class="cmd"><b>$</b> npx tui2web <span id="end-app">claude</span></div>
+    <div class="apps" id="end-apps"></div>
     <div class="url">tui2web.com · free &amp; open source</div>
   </div>
 
@@ -165,6 +169,9 @@ const QR = `▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄�
 █ █▄▄▄█ █ ██ ▄█▀█▀▄▀▀▀ ▄█ █
 █▄▄▄▄▄▄▄█▄█▄▄███████▄▄▄▄▄▄█`;
 $('vf-qr').textContent = QR;
+$('end-apps').innerHTML = FORMAT === 'vertical'
+  ? 'Works with Claude Code, Codex,<br>Gemini CLI, opencode, pi, aider…<br>any terminal app.'
+  : 'Works with Claude Code, Codex, Gemini CLI, opencode, pi, aider…<br>any terminal app.';
 
 // iPhone keyboard.
 const KB = [
@@ -364,7 +371,9 @@ window.seek = function (t) {
   $('caption').innerHTML = cap;
   $('caption').style.opacity = op;
 
-  // End card
+  // End card: the command cycles through other terminal apps, one per beat.
+  const apps = ['claude', 'codex', 'opencode', 'pi', 'gemini', 'aider', 'nvim'];
+  $('end-app').textContent = apps[clamp(Math.floor((t - END) / BEAT), 0, apps.length - 1)];
   $('end').style.opacity = ramp(t, END - 0.15, 0.3);
   $('end').style.transform = `scale(${0.97 + 0.03 * ramp(t, END - 0.15, 0.6)})`;
 };

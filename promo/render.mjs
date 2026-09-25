@@ -17,7 +17,7 @@ import { chromium } from 'playwright-core';
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const FPS = 30;
 const FORMATS = { landscape: [1920, 1080], vertical: [1080, 1920] };
-const STILLS = [3.2, 6.2, 7.8, 9.0, 11.6, 14.5, 15.9, 18.5, 21];
+const STILLS = [18.8, 20.3, 22.8];
 const here = new URL('.', import.meta.url);
 const out = new URL('out/', here);
 const music = new URL('music.mp3', here);
