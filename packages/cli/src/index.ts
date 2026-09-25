@@ -56,6 +56,7 @@ type Options = { relay?: string; password: boolean; qr: boolean; wait: boolean; 
 
 function parseArgs(argv: string[]): Options {
   const opts: Options = { password: true, qr: true, wait: true, command: [] };
+  let tailscale = false;
   let i = 0;
   for (; i < argv.length; i++) {
     const arg = argv[i];
@@ -75,9 +76,13 @@ function parseArgs(argv: string[]): Options {
     else if (arg.startsWith('--hotkey=')) opts.hotkey = arg.slice('--hotkey='.length);
     else if (arg === '--relay') opts.relay = argv[++i] ?? exit(2, '--relay needs a URL');
     else if (arg.startsWith('--relay=')) opts.relay = arg.slice('--relay='.length);
-    else if (arg === '--tailscale') opts.relay = TAILSCALE;
+    else if (arg === '--tailscale') tailscale = true;
     else exit(2, `Unknown option ${arg}\n\n${HELP}`);
   }
+  // Both pick the relay; letting the last one win could quietly take a session
+  // meant for the tailnet onto another relay.
+  if (tailscale && opts.relay !== undefined && opts.relay !== TAILSCALE) exit(2, '--tailscale and --relay both choose the relay. Pick one.');
+  if (tailscale) opts.relay = TAILSCALE;
   opts.command = argv.slice(i);
   return opts;
 }
@@ -113,7 +118,14 @@ async function main() {
   if (opts.command.length === 0) exit(2, HELP);
 
   const config = loadConfig();
-  let relay = opts.relay ?? process.env.TUI2WEB_RELAY ?? config.relay ?? DEFAULT_RELAY;
+  const envRelay = process.env.TUI2WEB_RELAY || undefined;
+  // A leftover $TUI2WEB_RELAY (say, in a shell profile) would otherwise take
+  // sessions off the tailnet without a word. An explicit flag still decides.
+  if (opts.relay === undefined && config.relay === TAILSCALE && envRelay && envRelay !== TAILSCALE) {
+    exit(2, `tui2web: your default is Tailscale (tui2web use tailscale), but $TUI2WEB_RELAY is set to ${envRelay}.
+Not guessing which one you meant. Unset TUI2WEB_RELAY, or choose for this session with --tailscale or --relay ${envRelay}.`);
+  }
+  let relay = opts.relay ?? envRelay ?? config.relay ?? DEFAULT_RELAY;
   const onTailnet = relay === TAILSCALE;
   const password = opts.password ? (config.password ?? null) : null;
   const hotkeySpec = opts.hotkey ?? config.hotkey ?? DEFAULT_HOTKEY;
@@ -143,7 +155,13 @@ async function main() {
       relay = `http://${ts.ip}:${port}`;
       publicBase = `http://${ts.host}:${port}`;
     } catch (err) {
-      exit(1, `tui2web: ${(err as Error).message}`);
+      // Never fall back to another relay: the session was meant to stay on the tailnet.
+      const instead = opts.relay === TAILSCALE ? 'run without --tailscale'
+        : envRelay === TAILSCALE ? 'unset TUI2WEB_RELAY'
+        : 'run `tui2web use public` (or pass --relay <url>)';
+      exit(1, `tui2web: ${(err as Error).message}
+Not starting: Tailscale sessions stay on your tailnet and never fall back to ${DEFAULT_RELAY}.
+To use a public relay instead, ${instead}.`);
     }
   }
 

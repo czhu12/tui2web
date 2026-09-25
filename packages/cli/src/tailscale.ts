@@ -29,7 +29,7 @@ function candidates(): string[] {
 function run(file: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(file, args, { timeout: 10_000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) reject(Object.assign(err, { stderr: String(stderr) }));
+      if (err) reject(Object.assign(err, { stdout: String(stdout), stderr: String(stderr) }));
       else resolve(String(stdout));
     });
   });
@@ -38,24 +38,27 @@ function run(file: string, args: string[]): Promise<string> {
 /** Reads this machine's tailnet address, or throws an error that says how to fix it. */
 export async function tailscaleAddress(): Promise<TailscaleAddress> {
   let output: string | null = null;
-  let failure: (Error & { code?: unknown; stderr?: string }) | null = null;
+  type Failure = Error & { code?: unknown; stdout?: string; stderr?: string; killed?: boolean };
+  let failure: Failure | null = null;
   for (const bin of candidates()) {
     try {
       output = await run(bin, ['status', '--json']);
       break;
     } catch (err) {
-      const e = err as Error & { code?: unknown; stderr?: string };
-      // Not found: try the next place. Anything else: Tailscale is there but unhappy.
-      if (e.code === 'ENOENT') continue;
-      failure = e;
-      break;
+      // Not found, or found but failing (e.g. a Homebrew CLI that can't reach the
+      // Mac app's daemon): try the next place, and report the first real failure.
+      const e = err as Failure;
+      if (e.code !== 'ENOENT') failure ??= e;
     }
   }
+  // `tailscale status` exits non-zero when it isn't running, but may still print
+  // its JSON; then the backend state below says exactly what's wrong.
+  if (output === null && failure?.stdout?.trim().startsWith('{')) output = failure.stdout;
   if (output === null) {
     if (!failure) throw new Error('Tailscale is not installed. Get it at https://tailscale.com/download, then sign in on this computer and your phone.');
-    // tailscale status exits non-zero when the daemon isn't running, but may still print JSON.
+    if (failure.killed) throw new Error("Tailscale didn't answer within 10 seconds. Is it running? Open the Tailscale app, or run: tailscale up");
     const detail = (failure.stderr || failure.message).trim().split('\n')[0];
-    throw new Error(`could not read Tailscale status (${detail}). Is Tailscale running? Try: tailscale up`);
+    throw new Error(`could not read Tailscale status (${detail}). Is Tailscale running? Open the Tailscale app, or run: tailscale up`);
   }
 
   let status: Status;

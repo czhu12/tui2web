@@ -94,6 +94,21 @@ res = cli(['--tailscale', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'NeedsLo
 check('signed-out Tailscale is reported', res.status === 1 && res.stderr.includes('tailscale up'), res.stderr.trim());
 res = cli(['--tailscale', '--no-wait', 'true'], { TUI2WEB_TAILSCALE_BIN: '/nonexistent/tailscale' });
 check('missing Tailscale is reported', res.status === 1 && res.stderr.includes('not installed'), res.stderr.trim());
+res = cli(['--tailscale', '--no-wait', 'true'], { FAKE_TAILSCALE_DOWN: '1' });
+check('a daemon that isn\'t running is reported', res.status === 1 && res.stderr.includes("doesn't appear to be running"), res.stderr.trim());
+res = cli(['--tailscale', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'Stopped', FAKE_TAILSCALE_EXIT: '1' });
+check('status JSON on a failing exit still names the state', res.status === 1 && res.stderr.includes('Tailscale is stopped'), res.stderr.trim());
+
+// ---- 3a. Never falls back to another relay -------------------------------------------
+// Every refusal says so and starts nothing: no link, and the command never runs.
+const noSession = (r) => !/\/session\//.test(r.stdout) && !r.stdout.includes('RAN');
+res = cli(['--tailscale', '--no-wait', 'sh', '-c', 'echo RAN'], { FAKE_TAILSCALE_STATE: 'Stopped' });
+check('refusal says it won\'t fall back', res.stderr.includes('never fall back to https://tui2web.com') && res.stderr.includes('run without --tailscale'), res.stderr.trim());
+check('  and starts nothing', noSession(res), res.stdout.slice(0, 120));
+res = cli(['--tailscale', '--relay', 'https://tui2web.com', '--no-wait', 'true']);
+check('--tailscale with --relay is refused', res.status === 2 && res.stderr.includes('Pick one'), res.stderr.trim());
+res = cli(['--relay', 'https://tui2web.com', '--tailscale', '--no-wait', 'true']);
+check('  in either order', res.status === 2 && res.stderr.includes('Pick one'), res.stderr.trim());
 
 // ---- 4. MagicDNS off falls back to the IP ------------------------------------------
 const c = start(['--tailscale'], { FAKE_TAILSCALE_MAGICDNS: '0' });
@@ -141,6 +156,12 @@ check('plain tui2web then runs on the tailnet', !!linkD && new URL(linkD).hostna
 d.cli.write('exit\r');
 await d.exited;
 check('use shows the current choice', execFileSync(CLI_NODE, [CLI_ENTRY, 'use'], { env }).toString().startsWith('tailscale'));
+res = cli(['--no-wait', 'sh', '-c', 'echo RAN'], { FAKE_TAILSCALE_STATE: 'NeedsLogin' });
+check('default tailnet with Tailscale signed out is refused', res.status === 1 && res.stderr.includes('tui2web use public') && noSession(res), res.stderr.trim());
+res = cli(['--no-wait', 'sh', '-c', 'echo RAN'], { TUI2WEB_RELAY: 'https://tui2web.com' });
+check('$TUI2WEB_RELAY doesn\'t silently beat use tailscale', res.status === 2 && res.stderr.includes('$TUI2WEB_RELAY is set') && noSession(res), res.stderr.trim());
+res = cli(['--no-wait', '--tailscale', 'sh', '-c', 'echo RAN'], { TUI2WEB_RELAY: 'https://tui2web.com', FAKE_TAILSCALE_STATE: 'Stopped' });
+check('  --tailscale still decides (and is refused while stopped)', res.status === 1 && res.stderr.includes('Tailscale is stopped'), res.stderr.trim());
 execFileSync(CLI_NODE, [CLI_ENTRY, 'use', 'https://relay.example.com/'], { env });
 check('use <url> saves the URL', config().relay === 'https://relay.example.com');
 execFileSync(CLI_NODE, [CLI_ENTRY, 'use', 'public'], { env });
