@@ -283,6 +283,8 @@
       .security li strong { color: var(--text); }
       .warn { border-color: #6e5413; background: #1c1708; }
       .warn h3 { color: #f2cc60; }
+      .tip { grid-column: 1 / -1; border-color: var(--accent); }
+      .tip h3 { color: var(--accent); }
 
       table { width: 100%; border-collapse: collapse; font-size: 15px; }
       td { padding: 12px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -541,7 +543,11 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           </div>
           <div class="card warn">
             <h3>Treat the link like a password</h3>
-            <p>Anyone with the link can type into your terminal, and a coding agent can run commands on your computer. Don't share the link, and end the session when you're done. Traffic is encrypted on the way to and from the relay, but the relay itself can see your session's contents. If that matters for your work, <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-host the relay</a>.</p>
+            <p>Anyone with the link can type into your terminal, and a coding agent can run commands on your computer. Don't share the link, and end the session when you're done. Traffic is encrypted on the way to and from the relay, but the relay itself can see your session's contents. If that matters for your work, use Tailscale (below).</p>
+          </div>
+          <div class="card tip">
+            <h3>Leaving it running? Use Tailscale</h3>
+            <p>For sessions that stay open for hours or overnight, run <code>tui2web --tailscale claude</code>. Your computer runs the relay itself, so the session never passes through tui2web.com, and only devices signed into your <a href="https://tailscale.com">Tailscale</a> account can reach it. Even a leaked link is useless to anyone else. <code>tui2web use tailscale</code> makes it the default. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md#most-private-tailscale">setup guide</a>.</p>
           </div>
         </div>
       </section>
