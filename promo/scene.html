@@ -187,11 +187,16 @@ document.querySelectorAll('.kb-row span').forEach((el) => (keyEls[el.dataset.key
 // seconds. Retime these if the music changes (see render.mjs).
 const REVEAL = 4.6, BEAT = 0.692;
 const beat = (k) => REVEAL + k * BEAT;
-const APPROVE = beat(5);                  // tap "return" to approve the preview deploy
-const FOLLOW_UP = 'looks great ship it to prod';
-const TYPE_FROM = beat(8.6), TYPE_TO = beat(12.6);   // typed on the phone keyboard
-const SEND = beat(13);                    // tap "return" to send it
-const END = beat(17);                     // end card
+// Everything the user does happens on the phone keyboard. Each message is
+// typed between `from` and `to`, then sent with "return" at `send`.
+const MESSAGES = [
+  { text: 'implement the new onboarding flow from figma', from: beat(0.6), to: beat(4.4), send: beat(5) },
+  { text: 'looks great ship it to prod', from: beat(13), to: beat(15.6), send: beat(16) },
+];
+const [PROMPT, FOLLOW_UP] = MESSAGES;
+const APPROVE = beat(10);                 // "return" approves the preview deploy
+const RETURNS = [PROMPT.send, APPROVE, FOLLOW_UP.send];
+const END = beat(20);                     // end card
 
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const ease = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
@@ -199,7 +204,9 @@ const ramp = (t, start, dur) => ease((t - start) / dur);
 const window_ = (t, a, b, fade = 0.35) => Math.min(ramp(t, a, fade), 1 - ramp(t, b - fade, fade));
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const cursor = (t) => (Math.floor(t * 2) % 2 === 0 ? '█' : ' ');
-const typed = (t) => FOLLOW_UP.slice(0, Math.round(clamp((t - TYPE_FROM) / (TYPE_TO - TYPE_FROM)) * FOLLOW_UP.length));
+const typed = (m, t) => m.text.slice(0, Math.round(clamp((t - m.from) / (m.to - m.from)) * m.text.length));
+// The message being typed at time t, if any.
+const typing = (t) => MESSAGES.find((m) => t >= m.from && t < m.send);
 
 function wrap(text, width) {
   const lines = [];
@@ -240,30 +247,36 @@ function claude(t, width) {
     out.push('');
   };
 
-  user('implement the new onboarding flow from figma');
-  tool('figma', 'get_design', 'file: "Onboarding v3"', '3 frames: Welcome, Pick a plan, Invite team');
-  if (t >= beat(1)) builtin('Write', 'src/onboarding/Welcome.tsx', 'Wrote 138 lines');
-  if (t >= beat(2)) tool('playwright', 'screenshot', 'url: "/onboarding"', '<span class="g">matches the Figma frames (3/3)</span>', '');
-  if (t >= beat(3)) say('All three screens are built and match the design. I\'ll deploy a preview so you can try it.');
-  if (t >= beat(3) && t < APPROVE + 0.3) {
-    out.push('<span class="c">●</span> <span class="g">vercel - deploy</span> <span class="d">(MCP)</span>');
-    out.push('  Do you want to proceed?');
-    out.push(`  <span class="${t >= APPROVE ? 'g' : 'sel'}">❯ 1. Yes</span>`);
-    out.push('    2. Yes, and don\'t ask again');
-    out.push('    3. No');
-  } else if (t >= APPROVE + 0.3) {
-    tool('vercel', 'deploy', 'target: "preview"', t >= beat(6.5) ? '<span class="sel">onboarding-v3.shop.vercel.app</span>' : 'building…', '');
-    if (t >= beat(7)) tool('playwright', 'screenshot', 'device: "iPhone 16"', '<span class="g">looks right on mobile</span>', '');
-    if (t >= beat(8)) say('The preview is live. Try it on your phone.');
+  out.push('<span class="c">✻</span> Welcome to Claude Code!', '');
+  if (t < PROMPT.send) {
+    // nothing sent yet
+  } else {
+    user(PROMPT.text);
+    if (t >= beat(6)) tool('figma', 'get_design', 'file: "Onboarding v3"', '3 frames: Welcome, Pick a plan, Invite team');
+    if (t >= beat(7)) builtin('Write', 'src/onboarding/Welcome.tsx', 'Wrote 138 lines');
+    if (t >= beat(8)) tool('playwright', 'screenshot', 'url: "/onboarding"', '<span class="g">matches the Figma frames (3/3)</span>', '');
+    if (t >= beat(9)) say('All three screens are built and match the design. I\'ll deploy a preview so you can try it.');
+    if (t >= beat(9) && t < APPROVE + 0.3) {
+      out.push('<span class="c">●</span> <span class="g">vercel - deploy</span> <span class="d">(MCP)</span>');
+      out.push('  Do you want to proceed?');
+      out.push(`  <span class="${t >= APPROVE ? 'g' : 'sel'}">❯ 1. Yes</span>`);
+      out.push('    2. Yes, and don\'t ask again');
+      out.push('    3. No');
+    } else if (t >= APPROVE + 0.3) {
+      tool('vercel', 'deploy', 'target: "preview"', t >= beat(11) ? '<span class="sel">onboarding-v3.shop.vercel.app</span>' : 'building…', '');
+      if (t >= beat(11.5)) tool('playwright', 'screenshot', 'device: "iPhone 16"', '<span class="g">looks right on mobile</span>', '');
+      if (t >= beat(12)) say('The preview is live. Try it on your phone.');
+    }
   }
-  if (t >= SEND) {
-    user(FOLLOW_UP);
-    if (t >= beat(14)) tool('vercel', 'deploy', 'target: "production"', '<span class="g">shop.com is live</span>', '');
-    if (t >= beat(15)) tool('slack', 'post_message', 'channel: "#design"', 'posted');
-    if (t >= beat(16)) say('The new onboarding is live on shop.com, and #design knows.');
+  if (t >= FOLLOW_UP.send) {
+    user(FOLLOW_UP.text);
+    if (t >= beat(17)) tool('vercel', 'deploy', 'target: "production"', '<span class="g">shop.com is live</span>', '');
+    if (t >= beat(18)) tool('slack', 'post_message', 'channel: "#design"', 'posted');
+    if (t >= beat(19)) say('The new onboarding is live on shop.com, and #design knows.');
   }
   // input box: shows what's being typed on the phone
-  const draft = t >= TYPE_FROM && t < SEND ? esc(typed(t)) : '';
+  const m = typing(t);
+  const draft = m ? esc(typed(m, t)) : '';
   out.push(`<div class="input"><span class="d">&gt;</span> ${draft}${t >= REVEAL ? cursor(t) : ''}</div>`);
   out.push('<div class="status">⏵⏵ accept edits on</div>');
   return out;
@@ -298,9 +311,9 @@ function phone(t) {
 
 const CAPTIONS = [
   [0.3, 3.5, 'Put <span>tui2web</span> in front of any command.'],
-  [3.8, beat(3), 'Your terminal, <span>on your phone.</span>'],
-  [beat(3), beat(8), 'Claude builds. <span>You approve from anywhere.</span>'],
-  [beat(8), END - 0.2, 'Bathroom break? <span>Bring Claude with you.</span>'],
+  [3.8, beat(6), 'Your terminal, <span>on your phone.</span>'],
+  [beat(6), beat(13), 'Claude builds. <span>You approve from anywhere.</span>'],
+  [beat(13), END - 0.2, 'Bathroom break? <span>Bring Claude with you.</span>'],
 ];
 
 window.DURATION = END + 4.6;
@@ -308,7 +321,7 @@ window.seek = function (t) {
   // Laptop
   $('laptop-term').innerHTML = laptop(t);
   $('laptop-term').classList.toggle('session', t >= REVEAL);
-  $('laptop-dim').style.opacity = window_(t, beat(3), END, 0.4);
+  $('laptop-dim').style.opacity = window_(t, beat(0.5), END, 0.4);
   $('laptop').style.opacity = 1 - ramp(t, END - 0.4, 0.4);
 
   // Phone: slides in, scans, then shows the session
@@ -321,28 +334,29 @@ window.seek = function (t) {
   $('viewer').style.opacity = ramp(t, REVEAL, 0.25);
   $('phone-term').innerHTML = phone(t);
 
-  // Keyboard slides up when Claude asks, stays up for the follow-up.
+  // The keyboard slides up once the session is on the phone and stays up.
   const kbH = $('kb-inner').offsetHeight;
-  $('keyboard').style.height = `${ramp(t, beat(4), 0.3) * (1 - ramp(t, SEND + 0.5, 0.3)) * kbH}px`;
+  $('keyboard').style.height = `${ramp(t, beat(0.2), 0.3) * kbH}px`;
   for (const el of Object.values(keyEls)) el.classList.remove('down');
+  const onReturn = RETURNS.find((r) => t >= r - 0.05 && t < r + 0.2);
   let pressed = null;
-  if (t >= APPROVE - 0.05 && t < APPROVE + 0.2) pressed = keyEls.ret;
-  else if (t >= SEND - 0.05 && t < SEND + 0.2) pressed = keyEls.ret;
-  else if (t >= TYPE_FROM && t < TYPE_TO) {
-    const n = typed(t).length;
-    const ch = FOLLOW_UP[Math.max(0, n - 1)];
-    pressed = keyEls[ch === ' ' ? 'space' : ch.toLowerCase()];
+  if (onReturn) pressed = keyEls.ret;
+  else {
+    const m = typing(t);
+    if (m && t < m.to) {
+      const ch = m.text[Math.max(0, typed(m, t).length - 1)];
+      pressed = keyEls[ch === ' ' ? 'space' : ch.toLowerCase()];
+    }
   }
   if (pressed) pressed.classList.add('down');
 
-  // A thumb tap marks the two "return" presses.
+  // A thumb tap marks each "return".
   const tap = $('tap');
-  const onReturn = (t >= APPROVE - 0.35 && t < APPROVE + 0.35) || (t >= SEND - 0.35 && t < SEND + 0.35);
-  const r = keyEls.ret.getBoundingClientRect(), s = document.querySelector('.screen').getBoundingClientRect();
-  tap.style.left = `${r.left - s.left + r.width / 2 - 37}px`;
-  tap.style.top = `${r.top - s.top + r.height / 2 - 37}px`;
-  tap.style.opacity = onReturn ? 1 : 0;
-  tap.style.transform = `scale(${(t >= APPROVE - 0.05 && t < APPROVE + 0.2) || (t >= SEND - 0.05 && t < SEND + 0.2) ? 0.82 : 1})`;
+  const r = keyEls.ret.getBoundingClientRect(), sc = document.querySelector('.screen').getBoundingClientRect();
+  tap.style.left = `${r.left - sc.left + r.width / 2 - 37}px`;
+  tap.style.top = `${r.top - sc.top + r.height / 2 - 37}px`;
+  tap.style.opacity = RETURNS.some((x) => t >= x - 0.35 && t < x + 0.35) ? 1 : 0;
+  tap.style.transform = `scale(${onReturn ? 0.82 : 1})`;
 
   // Captions
   let cap = '', op = 0;

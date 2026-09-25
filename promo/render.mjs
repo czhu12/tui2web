@@ -9,7 +9,7 @@
 // "Lofi Hip Hop Funky Midnight Club" (alex-morgan, Pixabay) puts the beat
 // coming back after the breakdown on the reveal; the scene's beat grid
 // (REVEAL/BEAT in scene.html) matches its 86.7 BPM:
-//   ffmpeg -ss 92.12 -t 21 -i promo/music.source.mp3 promo/music.mp3
+//   ffmpeg -ss 92.12 -t 24 -i promo/music.source.mp3 promo/music.mp3
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { chromium } from 'playwright-core';
@@ -17,7 +17,7 @@ import { chromium } from 'playwright-core';
 const CHROME = process.env.CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const FPS = 30;
 const FORMATS = { landscape: [1920, 1080], vertical: [1080, 1920] };
-const STILLS = [3.2, 5.6, 7.6, 8.1, 10.6, 12.4, 14.9, 18];
+const STILLS = [3.2, 6.2, 7.8, 9.0, 11.6, 14.5, 15.9, 18.5, 21];
 const here = new URL('.', import.meta.url);
 const out = new URL('out/', here);
 const music = new URL('music.mp3', here);
