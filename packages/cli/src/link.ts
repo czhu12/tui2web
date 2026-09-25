@@ -1,6 +1,9 @@
 import WebSocket from 'ws';
 import type { AgentHello, AgentToRelay, RelayToAgent } from '@tui2web/protocol';
 
+export type LinkState = 'connected' | 'connecting' | 'disconnected';
+type SessionInfo = { id: string; agentKey: string; token: string; command: string; password: AgentHello['password'] };
+
 /** Output produced while disconnected is replayed on reconnect, up to this much. */
 const MAX_BACKLOG_BYTES = 1024 * 1024;
 const REGISTER_TIMEOUT_MS = 10_000;
@@ -10,6 +13,8 @@ export type LinkHandlers = {
   onResize(cols: number, rows: number): void;
   /** The current screen, used to repaint a relay that restarted. */
   snapshot(): Promise<string>;
+  /** Connected, connecting or disconnected changed. */
+  onState?(): void;
 };
 
 /**
@@ -17,6 +22,10 @@ export type LinkHandlers = {
  * ngrok) and keeps the session alive across network blips by resuming with the
  * session's agent key. If the relay restarted and forgot the session, the
  * resume recreates it under the same id and token.
+ *
+ * The user can also disconnect on purpose: the relay then forgets the session
+ * until connect() restores it, again under the same id and token, so the link
+ * never changes.
  */
 export class RelayLink {
   /** Set once the session is gone for good (e.g. relay restarted). */
@@ -27,7 +36,10 @@ export class RelayLink {
   private ws: WebSocket | null = null;
   private ready = false;
   private finished = false;
-  private session: { id: string; agentKey: string; token: string; command: string; password: AgentHello['password'] } | null = null;
+  private paused = false;
+  /** A resume attempt that hasn't been answered yet. */
+  private pending: WebSocket | null = null;
+  private session: SessionInfo | null = null;
   private size = { cols: 80, rows: 24 };
   private backlog: Buffer[] = [];
   private backlogBytes = 0;
@@ -67,7 +79,52 @@ export class RelayLink {
     });
   }
 
+  get state(): LinkState {
+    if (this.paused) return 'disconnected';
+    return this.ready && this.ws?.readyState === WebSocket.OPEN ? 'connected' : 'connecting';
+  }
+
+  /**
+   * Starts disconnected, with an identity made here rather than by the relay,
+   * so the link is known before anything is sent. connect() creates the
+   * session on the relay under it.
+   */
+  prepare(session: SessionInfo, size: { cols: number; rows: number }) {
+    this.session = session;
+    this.size = size;
+    this.paused = true;
+  }
+
+  /** Removes the session from the relay. The link keeps working after connect(). */
+  disconnect() {
+    if (this.paused || this.finished) return;
+    this.paused = true;
+    this.backlog = [];
+    this.backlogBytes = 0;
+    this.pending?.terminate();
+    this.pending = null;
+    const ws = this.ws;
+    this.ws = null;
+    this.ready = false;
+    if (ws?.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ t: 'pause' } satisfies AgentToRelay));
+      ws.close(1000);
+    } else ws?.terminate();
+    this.handlers.onState?.();
+  }
+
+  /** Puts the session back on the relay under the same id and token. */
+  connect() {
+    if (!this.paused || this.finished) return;
+    this.paused = false;
+    this.retries = 0;
+    this.resume();
+    this.handlers.onState?.();
+  }
+
   sendOutput(data: Buffer) {
+    // While disconnected nothing is kept: connect() repaints from the mirror.
+    if (this.paused) return;
     if (this.ready && this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(data);
       return;
@@ -116,6 +173,7 @@ export class RelayLink {
     for (const chunk of this.backlog) ws.send(chunk);
     this.backlog = [];
     this.backlogBytes = 0;
+    this.handlers.onState?.();
 
     ws.on('message', (raw, isBinary) => {
       if (isBinary) return this.handlers.onInput(raw as Buffer);
@@ -126,7 +184,8 @@ export class RelayLink {
       if (this.ws !== ws) return;
       this.ready = false;
       this.ws = null;
-      if (!this.finished) this.scheduleReconnect();
+      if (!this.finished && !this.paused) this.scheduleReconnect();
+      this.handlers.onState?.();
     });
     ws.on('error', () => {});
   }
@@ -137,15 +196,17 @@ export class RelayLink {
   }
 
   private resume() {
-    if (this.finished || !this.session) return;
+    if (this.finished || this.paused || !this.session || this.pending) return;
     const { id, agentKey, token, command, password } = this.session;
     const ws = new WebSocket(this.agentUrl);
+    this.pending = ws;
     let settled = false;
     const retry = () => {
       if (settled) return;
       settled = true;
+      if (this.pending === ws) this.pending = null;
       ws.terminate();
-      this.scheduleReconnect();
+      if (!this.paused) this.scheduleReconnect();
     };
     ws.on('open', () =>
       ws.send(JSON.stringify({ t: 'resume', id, agentKey, ...this.size, restore: { token, command, password } } satisfies AgentToRelay)),
@@ -154,6 +215,8 @@ export class RelayLink {
     ws.on('close', retry);
     ws.once('message', (raw) => {
       const msg = parse(raw);
+      if (this.pending !== ws) return; // disconnected meanwhile
+      this.pending = null;
       if (msg?.t === 'resumed') {
         settled = true;
         ws.off('error', retry);
@@ -165,6 +228,10 @@ export class RelayLink {
         this.backlog = [];
         this.backlogBytes = 0;
         this.handlers.snapshot().then((screen) => {
+          if (this.paused) {
+            ws.send(JSON.stringify({ t: 'pause' } satisfies AgentToRelay));
+            return ws.close(1000);
+          }
           if (ws.readyState !== WebSocket.OPEN) return this.scheduleReconnect();
           this.adopt(ws, [Buffer.from(screen, 'utf8')]);
         });
@@ -174,6 +241,7 @@ export class RelayLink {
         this.finished = true;
         this.lostReason = msg.message;
         ws.terminate();
+        this.handlers.onState?.();
       } else retry();
     });
   }

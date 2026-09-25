@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { StringDecoder } from 'node:string_decoder';
+import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { hashPassword, loadConfig, promptHidden, saveConfig } from './config.ts';
-import { RelayLink } from './link.ts';
+import { RelayLink, type LinkState } from './link.ts';
 import { DEFAULT_RELAY_PORT, startLocalRelay } from './local-relay.ts';
-import { DEFAULT_HOTKEY, extractHotkey, isNotAKeyPress, parseHotkey, type Hotkey } from './hotkey.ts';
+import { DEFAULT_HOTKEY, extractHotkey, isNotAKeyPress, parseHotkey, plainLetter, type Hotkey } from './hotkey.ts';
 import { ScreenMirror } from './mirror.ts';
 import { MouseModes } from './mouse.ts';
 import { listSessions, registerSession } from './registry.ts';
@@ -26,6 +27,7 @@ Usage:
   tui2web [options] <command> [args...]
   tui2web ls                 Show links for your running sessions
   tui2web use <relay>        Choose the default relay: tailscale, public, or a URL
+  tui2web autoconnect on|off Whether sessions connect to the relay as they start
   tui2web relay [options]    Run your own relay (see: tui2web relay --help)
   tui2web set-password       Set the password for opening sessions without the link
   tui2web clear-password     Remove the saved password
@@ -37,6 +39,10 @@ Options:
   --no-password    Only accept the link's token for this session, not your password
   --no-qr          Don't print a QR code
   --no-wait        Start the command right away instead of waiting for Enter
+  --disconnected   Start without connecting to the relay; connect later from
+                   the link screen (hotkey, then c). The link stays the same.
+  --connected      Connect as the session starts (the default; overrides
+                   tui2web autoconnect off)
   --hotkey <key>   Key that shows the link again while the command runs
                    (default: ctrl-\\; e.g. ctrl-^, ctrl-g, or none)
   -h, --help       Show this help
@@ -46,7 +52,7 @@ Example:
   tui2web claude --continue
 `;
 
-type Options = { relay?: string; password: boolean; qr: boolean; wait: boolean; hotkey?: string; command: string[] };
+type Options = { relay?: string; password: boolean; qr: boolean; wait: boolean; connect?: boolean; hotkey?: string; command: string[] };
 
 function parseArgs(argv: string[]): Options {
   const opts: Options = { password: true, qr: true, wait: true, command: [] };
@@ -63,6 +69,8 @@ function parseArgs(argv: string[]): Options {
     else if (arg === '--no-password') opts.password = false;
     else if (arg === '--no-qr') opts.qr = false;
     else if (arg === '--no-wait') opts.wait = false;
+    else if (arg === '--disconnected') opts.connect = false;
+    else if (arg === '--connected') opts.connect = true;
     else if (arg === '--hotkey') opts.hotkey = argv[++i] ?? exit(2, '--hotkey needs a key, e.g. ctrl-\\');
     else if (arg.startsWith('--hotkey=')) opts.hotkey = arg.slice('--hotkey='.length);
     else if (arg === '--relay') opts.relay = argv[++i] ?? exit(2, '--relay needs a URL');
@@ -94,6 +102,7 @@ async function main() {
   if (argv[0] === 'ls') return listCommand();
   if (argv[0] === 'relay') return relayCommand(argv.slice(1));
   if (argv[0] === 'use') return useCommand(argv.slice(1));
+  if (argv[0] === 'autoconnect') return autoconnectCommand(argv.slice(1));
   if (argv[0] === 'clear-password') {
     const { password: _, ...rest } = loadConfig();
     saveConfig(rest);
@@ -113,6 +122,10 @@ async function main() {
   const file = opts.command[0];
   const launch = resolveCommand(opts.command);
   const local = () => ({ cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 });
+  const startConnected = opts.connect ?? config.autoconnect ?? true;
+  if (!startConnected && !hotkey) exit(2, 'Starting disconnected needs the hotkey, to connect later. Drop --hotkey none, or use --connected.');
+  /** Where people open links, e.g. https://tui2web.com. */
+  let publicBase = relay.replace(/\/+$/, '');
 
   // Tailscale: this process hosts its own relay, bound to the tailnet address
   // only, so it lives and dies with this session and nothing else can reach it.
@@ -128,6 +141,7 @@ async function main() {
         log: () => {},
       });
       relay = `http://${ts.ip}:${port}`;
+      publicBase = `http://${ts.host}:${port}`;
     } catch (err) {
       exit(1, `tui2web: ${(err as Error).message}`);
     }
@@ -148,6 +162,8 @@ async function main() {
     link.sendSize(cols, rows);
   };
 
+  /** Redraws the link overlay if it's up, e.g. when the connection changes. */
+  let refreshOverlay = () => {};
   const link = new RelayLink(relay, {
     onInput: (data) => term?.write(remoteDecoder.write(data)),
     onResize: (cols, rows) => {
@@ -155,17 +171,28 @@ async function main() {
       applySize(cols, rows);
     },
     snapshot: () => mirror.snapshot(),
+    onState: () => refreshOverlay(),
   });
 
+  const command = opts.command.join(' ');
   let session: { id: string; url: string };
-  try {
-    session = await link.register({ t: 'hello', command: opts.command.join(' '), ...size, password });
-  } catch (err) {
-    exit(1, `tui2web: ${(err as Error).message}`);
+  if (startConnected) {
+    try {
+      session = await link.register({ t: 'hello', command, ...size, password });
+    } catch (err) {
+      exit(1, `tui2web: ${(err as Error).message}`);
+    }
+  } else {
+    // Nothing goes to the relay yet. Make the session's identity here, so the
+    // link can be shown (and scanned) now; connecting creates it under these.
+    const id = randomBytes(16).toString('base64url');
+    const token = randomBytes(32).toString('base64url');
+    link.prepare({ id, token, agentKey: randomBytes(32).toString('base64url'), command, password }, size);
+    session = { id, url: `${publicBase}/session/${id}?token=${token}` };
   }
 
-  const banner = bannerLines(session.url, opts.qr, password !== null, hotkey, onTailnet);
-  process.stdout.write(banner.join('\n') + '\n');
+  const banner = () => bannerLines(session.url, opts.qr, password !== null, hotkey, onTailnet, link.state);
+  process.stdout.write(banner().join('\n') + '\n');
 
   // Full-screen programs clear the screen as soon as they start, which would
   // hide the link and QR code, so wait until the user has grabbed it.
@@ -199,10 +226,15 @@ async function main() {
 
   const openOverlay = () => {
     overlay = 'on';
-    const lines = [...banner, '', `\x1b[2mPress any key to return to ${file}.\x1b[0m`].slice(0, Math.max(1, local().rows - 1));
+    const state = link.state;
+    const keys = state === 'disconnected' ? 'Press \x1b[1mc\x1b[0m\x1b[2m to connect' : 'Press \x1b[1md\x1b[0m\x1b[2m to disconnect';
+    const lines = [...banner(), '', `\x1b[2m${keys}, or any other key to return to ${file}.\x1b[0m`].slice(0, Math.max(1, local().rows - 1));
     // Reset attributes and any scroll region so the overlay draws cleanly, and
     // turn off mouse reporting so the link can be selected and copied.
     stdout.write(mouse.disableSequence() + '\x1b[0m\x1b[r\x1b[H\x1b[2J' + lines.join('\r\n'));
+  };
+  refreshOverlay = () => {
+    if (overlay === 'on') openOverlay();
   };
 
   const closeOverlay = async () => {
@@ -234,7 +266,11 @@ async function main() {
     let text = localDecoder.write(chunk);
     if (overlay !== 'off') {
       // Mouse reports, focus changes and key releases don't close it.
-      if (overlay === 'on' && !isNotAKeyPress(text)) void closeOverlay();
+      if (overlay !== 'on' || isNotAKeyPress(text)) return;
+      const key = plainLetter(text);
+      if (key === 'c') link.connect();
+      else if (key === 'd') link.disconnect();
+      else void closeOverlay();
       return;
     }
     const hot = extractHotkey(text, hotkey);
@@ -297,14 +333,19 @@ function waitForEnter(command: string): Promise<boolean> {
   });
 }
 
-function bannerLines(url: string, qr: boolean, passwordEnabled: boolean, hotkey: Hotkey, tailnet: boolean): string[] {
+function bannerLines(url: string, qr: boolean, passwordEnabled: boolean, hotkey: Hotkey, tailnet: boolean, state: LinkState): string[] {
   const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
   const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
-  const lines = ['', `${bold('tui2web')} session is live:`, '', `  ${bold(url)}`, ''];
+  const status =
+    state === 'connected' ? '\x1b[32m● Connected\x1b[0m: your phone can open this link.'
+    : state === 'connecting' ? '\x1b[33m◌ Connecting…\x1b[0m'
+    : `\x1b[2m○ Disconnected\x1b[0m: nothing is on the relay. The link works again once you connect${hotkey ? ` (${hotkey.label}, then c)` : ''}.`;
+  const title = state === 'disconnected' ? `${bold('tui2web')} session (disconnected):` : `${bold('tui2web')} session is live:`;
+  const lines = ['', title, '', `  ${bold(url)}`, '', status, ''];
   if (qr) qrcode.generate(url, { small: true }, (code) => lines.push(...code.split('\n')));
   if (tailnet) lines.push(dim('Private to your tailnet: open it on a device signed into Tailscale.'));
   lines.push(dim(passwordEnabled ? 'Anyone with this link, or your tui2web password, can control this terminal.' : 'Anyone with this link can control this terminal.'));
-  if (hotkey) lines.push(dim(`Press ${hotkey.label} any time to show this link again.`));
+  if (hotkey) lines.push(dim(`Press ${hotkey.label} any time to show this link again, and to connect or disconnect.`));
   lines.push('');
   return lines;
 }
@@ -428,6 +469,23 @@ async function useCommand(argv: string[]) {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') exit(2, 'The relay URL must start with http:// or https://');
   saveConfig({ ...config, relay: choice.replace(/\/+$/, '') });
   console.log(`Sessions will use the relay at ${choice.replace(/\/+$/, '')}.`);
+}
+
+function autoconnectCommand(argv: string[]) {
+  const config = loadConfig();
+  const choice = argv[0];
+  if (!choice) {
+    return console.log(config.autoconnect === false ? 'off: sessions start disconnected' : 'on: sessions connect as they start');
+  }
+  if (argv.length > 1 || (choice !== 'on' && choice !== 'off')) exit(2, 'Usage: tui2web autoconnect on|off');
+  if (choice === 'on') {
+    const { autoconnect: _, ...rest } = config;
+    saveConfig(rest);
+    console.log('Sessions will connect to the relay as they start.');
+  } else {
+    saveConfig({ ...config, autoconnect: false });
+    console.log('Sessions will start disconnected. Connect one from its link screen when you leave (the hotkey, then c).');
+  }
 }
 
 function listCommand() {

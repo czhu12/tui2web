@@ -80,12 +80,12 @@ let screen = await s.text();
 check('overlay turns mouse reporting off so the link can be selected', s.screen.modes.mouseTrackingMode === 'none', s.screen.modes.mouseTrackingMode);
 const rawAtOverlay = s.raw.length;
 // The link wraps at 90 columns, so look for the session id rather than the whole URL.
-check('Ctrl+\\ shows the link over the app', screen.includes(u.pathname.split('/').pop()) && screen.includes('Press any key to return') && !screen.includes('FAKE-TUI'));
+check('Ctrl+\\ shows the link over the app', screen.includes(u.pathname.split('/').pop()) && screen.includes('any other key to return') && !screen.includes('FAKE-TUI'));
 check('app did not receive the hotkey', !s.raw.slice(-2000).includes('count=2'));
 
 s.cli.write('\x1b[<0;10;5M'); // a mouse click report
 await sleep(300);
-check('mouse events do not close the overlay', (await s.text()).includes('Press any key to return'));
+check('mouse events do not close the overlay', (await s.text()).includes('any other key to return'));
 
 // The phone keeps working while the overlay is up.
 const cookie = (await fetch(url, { redirect: 'manual' })).headers.get('set-cookie').split(';')[0];
@@ -94,12 +94,12 @@ await new Promise((r) => phone.on('open', r));
 phone.send(Buffer.from('p'));
 await sleep(500);
 check('phone input still reaches the app during the overlay', true);
-check('overlay stays up while the app updates in the background', (await s.text()).includes('Press any key to return'));
+check('overlay stays up while the app updates in the background', (await s.text()).includes('any other key to return'));
 
 s.cli.write('z'); // any key closes; it must not reach the app
 await sleep(600);
 check('any key restores the app, including updates made meanwhile', (await appLine(s)) === 'FAKE-TUI count=2 last="p"', await appLine(s));
-check('overlay is gone', !(await s.text()).includes('Press any key to return'));
+check('overlay is gone', !(await s.text()).includes('any other key to return'));
 check('closing restores the app\'s mouse mode', s.screen.modes.mouseTrackingMode === 'vt200', s.screen.modes.mouseTrackingMode);
 check('closing restores the app\'s mouse encoding (SGR 1006)', /\x1b\[\?[\d;]*1006[\d;]*h/.test(s.raw.slice(rawAtOverlay)));
 
@@ -126,10 +126,10 @@ for (const [name, press] of [['kitty keyboard protocol', '\x1b[92;5u'], ['modify
   const before = await appLine(s);
   s.cli.write(press);
   await sleep(400);
-  check(`hotkey works as ${name} sequence`, (await s.text()).includes('Press any key to return'));
+  check(`hotkey works as ${name} sequence`, (await s.text()).includes('any other key to return'));
   s.cli.write('\x1b[92;5:3u'); // key release (kitty event type 3)
   await sleep(300);
-  check(`  key release doesn't close the overlay`, (await s.text()).includes('Press any key to return'));
+  check(`  key release doesn't close the overlay`, (await s.text()).includes('any other key to return'));
   s.cli.write('\x1b[97u'); // "a" in kitty encoding closes it
   await sleep(500);
   check(`  closes and the app got none of those keys`, (await appLine(s)) === before, await appLine(s));
@@ -157,7 +157,7 @@ await sleep(300);
 check('with --hotkey ctrl-g, Ctrl+\\ goes to the app', (await appLine(s)) === 'FAKE-TUI count=1 last="\\u001c"', await appLine(s));
 s.cli.write('\x07');
 await sleep(300);
-check('Ctrl+G shows the link', (await s.text()).includes('Press any key to return'));
+check('Ctrl+G shows the link', (await s.text()).includes('any other key to return'));
 s.cli.write(' ');
 await sleep(300);
 s.cli.write('q');

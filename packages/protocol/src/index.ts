@@ -44,7 +44,14 @@ export type AgentSize = { t: 'size'; cols: number; rows: number };
 
 export type AgentExit = { t: 'exit'; code: number };
 
-export type AgentToRelay = AgentHello | AgentResume | AgentSize | AgentExit;
+/**
+ * The user disconnected the session from their computer. The relay forgets it
+ * (screen and all) until the agent resumes it with `restore`, under the same
+ * id and token.
+ */
+export type AgentPause = { t: 'pause' };
+
+export type AgentToRelay = AgentHello | AgentResume | AgentSize | AgentExit | AgentPause;
 
 export type RelayToAgent =
   | { t: 'registered'; id: string; agentKey: string; token: string; url: string }
@@ -69,5 +76,8 @@ export type RelayToViewer =
 /** WebSocket close codes the viewer acts on. */
 export type CloseUnauthorized = 4401;
 export type CloseNotFound = 4404;
+/** The session was disconnected from its computer and will come back when it reconnects. */
+export type ClosePaused = 4410;
 export const CLOSE_UNAUTHORIZED: CloseUnauthorized = 4401;
 export const CLOSE_NOT_FOUND: CloseNotFound = 4404;
+export const CLOSE_PAUSED: ClosePaused = 4410;

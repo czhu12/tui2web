@@ -39,6 +39,8 @@ tui2web [options] <command> [args...]
 --no-password    Only accept the link's token for this session
 --no-qr          Don't print a QR code
 --no-wait        Start the command right away instead of waiting for Enter
+--disconnected   Start without connecting to the relay; connect later (Ctrl+\, then c)
+--connected      Connect as the session starts (the default)
 --hotkey <key>   Key that shows the link again (default: ctrl-\; e.g. ctrl-^, ctrl-g, none)
 ```
 
@@ -52,6 +54,12 @@ Once the program is running, there are two ways to get the link again:
 - Run **`tui2web ls`** in another terminal to list your running sessions and their links.
 
 The link is also printed again when the session ends.
+
+## Connect only when you leave
+
+On the Ctrl+\\ screen, press **d** to disconnect the session from the relay and **c** to connect it again. While disconnected, nothing about the session is on the relay, and your phone shows "disconnected" until you reconnect. The link and token stay the same, so a phone that was logged in picks up where it left off.
+
+To start sessions disconnected and connect only when you head out, use `--disconnected`, or make it the default with `tui2web autoconnect off` (`tui2web autoconnect on` switches back). The link is shown up front either way, so you can scan it at your desk.
 
 ## Private sessions with Tailscale
 

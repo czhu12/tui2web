@@ -101,3 +101,21 @@ const NOT_A_KEY = new RegExp(
 export function isNotAKeyPress(input: string): boolean {
   return NOT_A_KEY.test(input);
 }
+
+// kitty keyboard protocol, a key with no modifiers: CSI code[:alternates] [; 1[:event]] u
+const KITTY_PLAIN = /^\x1b\[(\d+)(?::\d*)*(?:;(\d+)(?::(\d+))?)?u$/;
+
+/**
+ * The letter typed, lowercased, if the input is one unmodified letter key, in
+ * any encoding (apps like Claude Code turn on the kitty keyboard protocol).
+ */
+export function plainLetter(input: string): string | null {
+  if (/^[a-zA-Z]$/.test(input)) return input.toLowerCase();
+  const m = KITTY_PLAIN.exec(input);
+  if (!m) return null;
+  const mods = m[2] ? (Number(m[2]) - 1) & ~(64 | 128) : 0; // ignore Caps Lock / Num Lock
+  const event = m[3] ?? '1';
+  const code = Number(m[1]);
+  if (mods !== 0 || event === '3' || code < 97 || code > 122) return null;
+  return String.fromCharCode(code);
+}

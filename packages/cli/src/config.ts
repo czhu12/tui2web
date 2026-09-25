@@ -12,6 +12,8 @@ export type Config = {
   password?: PasswordHash;
   /** Key that shows the link again, e.g. "ctrl-\\" (default) or "none". */
   hotkey?: string;
+  /** Connect sessions to the relay as they start (default). false: start disconnected. */
+  autoconnect?: boolean;
 };
 
 export function loadConfig(): Config {

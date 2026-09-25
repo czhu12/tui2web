@@ -50,8 +50,11 @@ async function roundTrip(link, word) {
     if (isBinary) screen += data.toString();
     else if (JSON.parse(data.toString()).t === 'snapshot') snapshot = true;
   });
+  let closed = null;
+  ws.on('close', (code) => (closed = code));
+  ws.on('unexpected-response', (_q, res) => (closed = `http ${res.statusCode}`));
   ws.on('error', () => {});
-  if (!(await until(() => snapshot, 5000))) return { ok: false, why: 'no snapshot' };
+  if (!(await until(() => snapshot, 5000))) return { ok: false, why: `no snapshot (link ${r.status}, closed ${closed})` };
   ws.send(Buffer.from(`echo ${word}\r`));
   const ok = !!(await until(() => screen.includes(word) && screen.split(word).length > 2, 5000));
   ws.close();
@@ -98,6 +101,35 @@ const linkC = await linkOf(c);
 check('without MagicDNS the link uses the Tailscale IP', new URL(linkC).hostname === '127.0.0.1', linkC?.replace(/token=.*/, '…'));
 c.cli.write('exit\r');
 await c.exited;
+
+// ---- 4a. A port someone else holds on all interfaces is skipped -------------------
+// (e.g. `tui2web relay` on 8787: on macOS a loopback/tailnet bind could share it.)
+const { createServer } = await import('node:net');
+const blocker = createServer();
+await new Promise((r) => blocker.once('error', r).listen({ port: 8787, host: '::' }, r)); // may already be held
+const f = start(['--tailscale']);
+const linkF = await linkOf(f);
+check('skips a port held on all interfaces', !!linkF && new URL(linkF).port !== '8787', linkF?.replace(/token=.*/, '…'));
+f.cli.write('exit\r');
+await f.exited;
+blocker.close();
+
+// ---- 4b. Starting disconnected: the link is known up front and works after connecting
+const e = start(['--tailscale', '--disconnected']);
+const linkE = await linkOf(e);
+check('--disconnected on the tailnet shows a MagicDNS link up front', !!linkE && new URL(linkE).hostname === 'localhost', linkE?.replace(/token=.*/, '…'));
+check('  not live before connecting', (await fetch(linkE, { redirect: 'manual' })).status === 404);
+await until(() => /\$ $/.test(e.out)); // bash is up, so the CLI is reading keys
+e.cli.write('\x1c');
+await until(() => e.out.includes('c\x1b[0m\x1b[2m to connect')); // the link screen's "Press c to connect"
+e.cli.write('c');
+await until(() => e.out.includes('● Connected'));
+rt = await roundTrip(linkE, 'after-connect');
+check('  same link works after c', rt.ok, rt.why);
+e.cli.write('z');
+await sleep(300);
+e.cli.write('exit\r');
+await e.exited;
 
 // ---- 5. tui2web use ----------------------------------------------------------------
 const config = () => JSON.parse(readFileSync(join(HOME, '.tui2web', 'config.json'), 'utf8'));

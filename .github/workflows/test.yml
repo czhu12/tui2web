@@ -72,6 +72,11 @@ jobs:
         env:
           TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
 
+      - name: Connect and disconnect
+        run: node scripts/pause.mjs
+        env:
+          TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
+
       - name: Relay restart
         run: node scripts/restart.mjs
         env:

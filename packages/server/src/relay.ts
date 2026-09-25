@@ -4,7 +4,7 @@ import type { Duplex } from 'node:stream';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
-import type { AgentToRelay, CloseNotFound, CloseUnauthorized, RelayToAgent } from '@tui2web/protocol';
+import type { AgentToRelay, CloseNotFound, ClosePaused, CloseUnauthorized, RelayToAgent } from '@tui2web/protocol';
 import { authCookie, hasValidCookie, isAcceptablePasswordHash, isSameOrigin, safeEqual, verifyPassword } from './auth.ts';
 import { loginPage, messagePage } from './pages.ts';
 import { clampSize, isValidIdentity, SessionStore, type Session } from './sessions.ts';
@@ -13,6 +13,7 @@ import { clampSize, isValidIdentity, SessionStore, type Session } from './sessio
 // where the private protocol package doesn't exist. The types keep them in sync.
 const CLOSE_UNAUTHORIZED: CloseUnauthorized = 4401;
 const CLOSE_NOT_FOUND: CloseNotFound = 4404;
+const CLOSE_PAUSED: ClosePaused = 4410;
 
 export type RelayOptions = {
   port: number;
@@ -115,6 +116,9 @@ export function startRelay(opts: RelayOptions): Relay {
     const [, id, sub] = match;
     const session = store.get(id);
     res.setHeader('Cache-Control', 'no-store');
+    if (!session && store.isPaused(id)) {
+      return send(res, 503, 'text/html; charset=utf-8', messagePage('Disconnected', 'This session was disconnected from its computer. This page will reload when it reconnects.', baseUrl(req), 10));
+    }
     if (!session) {
       return send(res, 404, 'text/html; charset=utf-8', messagePage('Session not found', 'This session has ended or never existed.', baseUrl(req)));
     }
@@ -269,7 +273,7 @@ export function startRelay(opts: RelayOptions): Relay {
       // Accept, then close with a specific code, so the viewer can tell
       // "log in again" apart from "session is gone".
       const session = store.get(match[1]);
-      if (!session) return ws.close(CLOSE_NOT_FOUND, 'session not found');
+      if (!session) return store.isPaused(match[1]) ? ws.close(CLOSE_PAUSED, 'disconnected') : ws.close(CLOSE_NOT_FOUND, 'session not found');
       if (!hasValidCookie(req, session.id, session.cookieValue)) return ws.close(CLOSE_UNAUTHORIZED, 'unauthorized');
       trackAlive(ws);
       session.addViewer(ws);
@@ -322,7 +326,7 @@ export function startRelay(opts: RelayOptions): Relay {
         const session = store.create({ command: String(restore.command).slice(0, 200), ...size, password: restore.password }, identity);
         session.attachAgent(ws);
         reply({ t: 'resumed', restored: true });
-        log(`restored session after relay restart (${store.size} active)`);
+        log(`restored session (${store.size} active)`);
         return;
       }
 

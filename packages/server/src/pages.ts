@@ -6,7 +6,7 @@ function escapeHtml(s: string): string {
 }
 
 /** `base` is the relay's absolute URL; link previews need an absolute image URL. */
-function layout(title: string, body: string, base: string): string {
+function layout(title: string, body: string, base: string, head = ''): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -22,7 +22,7 @@ function layout(title: string, body: string, base: string): string {
 <meta property="og:image" content="${escapeHtml(base)}/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">${head}
 <style>
   :root { --bg: #0d1117; --panel: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #3fb950; --danger: #f85149; }
   * { box-sizing: border-box; }
@@ -63,6 +63,8 @@ ${opts.error ? `<p class="error">${escapeHtml(opts.error)}</p>` : ''}
   );
 }
 
-export function messagePage(title: string, message: string, base: string): string {
-  return layout(title, `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p>`, base);
+/** `refreshSeconds` reloads the page on a timer, e.g. while waiting for a session to come back. */
+export function messagePage(title: string, message: string, base: string, refreshSeconds?: number): string {
+  const head = refreshSeconds ? `\n<meta http-equiv="refresh" content="${refreshSeconds}">` : '';
+  return layout(title, `<h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p>`, base, head);
 }

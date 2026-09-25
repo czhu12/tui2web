@@ -2,7 +2,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import headless from '@xterm/headless';
 import serialize from '@xterm/addon-serialize';
 import type { WebSocket, RawData } from 'ws';
-import type { AgentToRelay, PasswordHash, RelayToAgent, RelayToViewer } from '@tui2web/protocol';
+import type { AgentToRelay, ClosePaused, PasswordHash, RelayToAgent, RelayToViewer } from '@tui2web/protocol';
 import { MouseModes } from './mouse.ts';
 
 const { Terminal } = headless;
@@ -16,6 +16,10 @@ const SNAPSHOT_SCROLLBACK = 1000;
 const LOGIN_WINDOW_MS = 60_000;
 const LOGIN_MAX_PER_WINDOW = 5;
 const LOGIN_MAX_TOTAL = 50;
+/** How long a disconnected session's id is remembered, so its page can say "disconnected". */
+const PAUSED_TTL_MS = 12 * 60 * 60_000;
+// A value, not an import: see relay.ts.
+const CLOSE_PAUSED: ClosePaused = 4410;
 
 export function randomId(bytes: number): string {
   return randomBytes(bytes).toString('base64url');
@@ -75,9 +79,9 @@ export class Session {
   private expiry: NodeJS.Timeout | null = null;
   private loginFailures: number[] = [];
   private totalLoginFailures = 0;
-  private dispose: () => void;
+  private dispose: (paused: boolean) => void;
 
-  constructor(opts: SessionOptions & { identity: SessionIdentity; dispose: () => void }) {
+  constructor(opts: SessionOptions & { identity: SessionIdentity; dispose: (paused: boolean) => void }) {
     this.id = opts.identity.id;
     this.token = opts.identity.token;
     this.agentKey = opts.identity.agentKey;
@@ -137,7 +141,17 @@ export class Session {
       if (size) this.setSize(size.cols, size.rows);
     } else if (msg.t === 'exit') {
       this.end(Number.isInteger(msg.code) ? msg.code : 0);
+    } else if (msg.t === 'pause') {
+      this.pause();
     }
+  }
+
+  /** Disconnected from the computer: forget everything until the agent restores it. */
+  private pause() {
+    if (this.ended) return;
+    for (const v of this.viewers) v.ws.close(CLOSE_PAUSED, 'disconnected');
+    this.viewers.clear();
+    this.destroy(true);
   }
 
   private onOutput(data: Buffer) {
@@ -236,25 +250,51 @@ export class Session {
     this.expiry = null;
   }
 
-  destroy() {
+  destroy(paused = false) {
     this.clearExpiry();
-    this.agent?.close(1000, 'session expired');
+    this.agent?.close(1000, paused ? 'disconnected' : 'session expired');
+    this.agent = null;
     for (const v of this.viewers) v.ws.close(1000, 'session expired');
     this.viewers.clear();
     this.term.dispose();
-    this.dispose();
+    this.dispose(paused);
   }
 }
 
 export class SessionStore {
   private sessions = new Map<string, Session>();
+  /** Ids of disconnected sessions (nothing else is kept), with when they were disconnected. */
+  private paused = new Map<string, number>();
 
   /** Creates a new session, or recreates one under a known identity (restore). */
   create(opts: SessionOptions, identity?: SessionIdentity): Session {
     const id = identity ?? { id: randomId(16), token: randomId(32), agentKey: randomId(32) };
-    const session: Session = new Session({ ...opts, identity: id, dispose: () => this.sessions.delete(session.id) });
+    const session: Session = new Session({
+      ...opts,
+      identity: id,
+      dispose: (paused) => {
+        this.sessions.delete(session.id);
+        if (paused) this.paused.set(session.id, Date.now());
+      },
+    });
     this.sessions.set(session.id, session);
+    this.paused.delete(session.id);
+    this.prunePaused();
     return session;
+  }
+
+  /** Whether this id belongs to a session its computer disconnected (and may reconnect). */
+  isPaused(id: string): boolean {
+    const at = this.paused.get(id);
+    return at !== undefined && Date.now() - at < PAUSED_TTL_MS;
+  }
+
+  private prunePaused() {
+    const cutoff = Date.now() - PAUSED_TTL_MS;
+    for (const [id, at] of this.paused) {
+      if (at >= cutoff) break; // insertion order is oldest first
+      this.paused.delete(id);
+    }
   }
 
   get(id: string): Session | undefined {

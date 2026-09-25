@@ -2,7 +2,7 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 import './style.css';
-import { CLOSE_NOT_FOUND, CLOSE_UNAUTHORIZED, type RelayToViewer, type ViewerToRelay } from '@tui2web/protocol';
+import { CLOSE_NOT_FOUND, CLOSE_PAUSED, CLOSE_UNAUTHORIZED, type RelayToViewer, type ViewerToRelay } from '@tui2web/protocol';
 import { Keys } from './keys.ts';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector<T>(sel)!;
@@ -97,6 +97,8 @@ let ws: WebSocket | null = null;
 let ended = false;
 let retries = 0;
 let notFoundSince: number | null = null;
+/** Disconnected from the computer: wait indefinitely, even if a relay restart forgets that. */
+let paused = false;
 const RESTORE_WAIT_MS = 3 * 60_000;
 
 function connect() {
@@ -123,7 +125,14 @@ function connect() {
       location.reload(); // the server shows the login page
       return;
     }
-    if (e.code === CLOSE_NOT_FOUND) {
+    if (e.code === CLOSE_PAUSED || (e.code === CLOSE_NOT_FOUND && paused)) {
+      // Disconnected on purpose from the computer; it may be hours before it
+      // comes back, so wait as long as it takes.
+      paused = true;
+      notFoundSince = null;
+      setStatus('agent-away');
+      showNotice('Your computer disconnected this session. It will come back when it reconnects.');
+    } else if (e.code === CLOSE_NOT_FOUND) {
       // After a relay restart the session is gone until the laptop reconnects
       // and restores it, so keep trying for a while before giving up.
       notFoundSince ??= Date.now();
@@ -149,6 +158,7 @@ function handle(msg: RelayToViewer) {
   switch (msg.t) {
     case 'hello':
       notFoundSince = null;
+      paused = false;
       titleEl.textContent = msg.command;
       document.title = `${msg.command} · tui2web`;
       term.reset();

@@ -46,11 +46,14 @@ node scripts/restart.mjs # session survives a relay restart (starts its own rela
 node scripts/startup.mjs  # Enter-to-start screen, Ctrl+\ link hotkey, tui2web ls
 node scripts/alias.mjs    # shell aliases/functions run through $SHELL -ic
 node scripts/tailscale.mjs # --tailscale per-session relays and `tui2web use` (fake tailscale)
+node scripts/pause.mjs     # connect/disconnect from the link screen, --disconnected, autoconnect
 ```
 
 To test on your phone over Wi-Fi, run the relay with `PUBLIC_URL=http://<your-LAN-ip>:8787`.
 
-CLI options: `--tailscale`, `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--no-wait`, `--hotkey <key>`. The link stays on screen until you press Enter, because full-screen TUIs clear it. After that, Ctrl+\\ shows it again and `tui2web ls` lists running sessions.
+CLI options: `--tailscale`, `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--no-wait`, `--disconnected` / `--connected`, `--hotkey <key>`. The link stays on screen until you press Enter, because full-screen TUIs clear it. After that, Ctrl+\\ shows it again and `tui2web ls` lists running sessions.
+
+On the Ctrl+\\ screen, `d` disconnects the session from the relay and `c` connects it again. Disconnecting sends `pause`: the relay closes phones with code 4410 and forgets the session, keeping only its id for a "Disconnected" page. Connecting restores it under the same id and token (the relay-restart path), so the link never changes. `--disconnected` (or `tui2web autoconnect off`) starts without contacting the relay: the CLI makes the id and token itself, so the link is shown up front.
 
 ## Running your own relay
 

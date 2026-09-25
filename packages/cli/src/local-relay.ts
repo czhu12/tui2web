@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
 export type Relay = { listening: Promise<void>; close(): Promise<void> };
@@ -26,7 +27,11 @@ export type RelayOptions = {
   host?: string | string[];
   /** Base URL for session links, given the port that was bound. */
   publicUrl?: (port: number) => string;
-  /** Try the following ports too when `port` is taken. */
+  /**
+   * Try the following ports too when `port` is taken, and skip ports another
+   * process holds on all interfaces: on macOS a specific address can share a
+   * port with such a listener, and connections may then reach the wrong one.
+   */
   scan?: boolean;
   log?: (message: string) => void;
 };
@@ -36,6 +41,7 @@ export async function startLocalRelay(opts: RelayOptions): Promise<{ relay: Rela
   const { startRelay, webDist } = await loadRelay();
   const last = opts.scan ? Math.min(65535, opts.port + PORT_SCAN - 1) : opts.port;
   for (let port = opts.port; ; port++) {
+    if (opts.scan && port < last && (await heldOnAllInterfaces(port))) continue;
     const relay = startRelay({ port, host: opts.host, publicUrl: opts.publicUrl?.(port), webDist, log: opts.log });
     try {
       await relay.listening;
@@ -49,4 +55,17 @@ export async function startLocalRelay(opts: RelayOptions): Promise<{ relay: Rela
       }
     }
   }
+}
+
+/** Whether something is listening on this port on all interfaces (:: or 0.0.0.0). */
+async function heldOnAllInterfaces(port: number): Promise<boolean> {
+  for (const host of ['::', '0.0.0.0']) {
+    const inUse = await new Promise<boolean>((resolve) => {
+      const probe = createServer();
+      probe.once('error', (err: NodeJS.ErrnoException) => resolve(err.code === 'EADDRINUSE'));
+      probe.listen({ port, host, exclusive: true }, () => probe.close(() => resolve(false)));
+    });
+    if (inUse) return true;
+  }
+  return false;
 }
