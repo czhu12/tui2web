@@ -109,7 +109,7 @@
 </head>
 <body>
   <div id="laptop" class="abs">
-    <div class="winbar"><i></i><i></i><i></i><span>~/infra — zsh</span></div>
+    <div class="winbar"><i></i><i></i><i></i><span>~/shop — zsh</span></div>
     <div id="laptop-term"></div>
     <div id="laptop-dim" class="abs"><div>Away from your desk</div></div>
   </div>
@@ -187,8 +187,8 @@ document.querySelectorAll('.kb-row span').forEach((el) => (keyEls[el.dataset.key
 // seconds. Retime these if the music changes (see render.mjs).
 const REVEAL = 4.6, BEAT = 0.692;
 const beat = (k) => REVEAL + k * BEAT;
-const APPROVE = beat(5);                  // tap "return" to approve the rollout
-const FOLLOW_UP = 'open a PR and tell the team in slack';
+const APPROVE = beat(5);                  // tap "return" to approve the preview deploy
+const FOLLOW_UP = 'looks great ship it to prod';
 const TYPE_FROM = beat(8.6), TYPE_TO = beat(12.6);   // typed on the phone keyboard
 const SEND = beat(13);                    // tap "return" to send it
 const END = beat(17);                     // end card
@@ -233,27 +233,34 @@ function claude(t, width) {
     out.push('');
   };
 
-  user('checkout is crashlooping in prod. find out why');
-  tool('kubernetes', 'get_pods', 'namespace: "prod"', '<span class="r">checkout-7d9f  CrashLoopBackOff</span>', '');
-  if (t >= beat(1)) tool('kubernetes', 'pod_logs', 'pod: "checkout-7d9f"', 'FATAL: too many DB connections (max 10)');
-  if (t >= beat(2)) tool('datadog', 'query_metrics', 'service: "checkout"', 'traffic 2.3× since the 9am launch');
-  if (t >= beat(3)) say('The launch traffic is exhausting the DB pool. I\'ll raise it from 10 to 50 and roll it out.');
+  // A built-in tool call (Write, Bash, ...), shown without the (MCP) tag.
+  const builtin = (name, arg, result) => {
+    out.push(`<span class="c">●</span> <span class="g">${name}</span>(${esc(arg)})`);
+    if (result) out.push(`  <span class="d">⎿ ${result}</span>`);
+    out.push('');
+  };
+
+  user('implement the new onboarding flow from figma');
+  tool('figma', 'get_design', 'file: "Onboarding v3"', '3 frames: Welcome, Pick a plan, Invite team');
+  if (t >= beat(1)) builtin('Write', 'src/onboarding/Welcome.tsx', 'Wrote 138 lines');
+  if (t >= beat(2)) tool('playwright', 'screenshot', 'url: "/onboarding"', '<span class="g">matches the Figma frames (3/3)</span>', '');
+  if (t >= beat(3)) say('All three screens are built and match the design. I\'ll deploy a preview so you can try it.');
   if (t >= beat(3) && t < APPROVE + 0.3) {
-    out.push('<span class="c">●</span> <span class="g">kubernetes - apply_manifest</span> <span class="d">(MCP)</span>');
+    out.push('<span class="c">●</span> <span class="g">vercel - deploy</span> <span class="d">(MCP)</span>');
     out.push('  Do you want to proceed?');
     out.push(`  <span class="${t >= APPROVE ? 'g' : 'sel'}">❯ 1. Yes</span>`);
     out.push('    2. Yes, and don\'t ask again');
     out.push('    3. No');
   } else if (t >= APPROVE + 0.3) {
-    tool('kubernetes', 'apply_manifest', 'deploy/checkout.yaml', 'deployment.apps/checkout configured');
-    if (t >= beat(6.5)) tool('kubernetes', 'rollout_status', 'deploy: "checkout"', t >= beat(7.5) ? '<span class="g">3/3 pods ready</span>' : 'rolling out…', '');
-    if (t >= beat(8)) say('Checkout is healthy again. Errors 12.4% → 0.1%.');
+    tool('vercel', 'deploy', 'target: "preview"', t >= beat(6.5) ? '<span class="sel">onboarding-v3.shop.vercel.app</span>' : 'building…', '');
+    if (t >= beat(7)) tool('playwright', 'screenshot', 'device: "iPhone 16"', '<span class="g">looks right on mobile</span>', '');
+    if (t >= beat(8)) say('The preview is live. Try it on your phone.');
   }
   if (t >= SEND) {
     user(FOLLOW_UP);
-    if (t >= beat(14)) tool('github', 'create_pull_request', 'repo: "shop/infra"', '#482 Raise checkout DB pool to 50');
-    if (t >= beat(15)) tool('slack', 'post_message', 'channel: "#incidents"', 'posted');
-    if (t >= beat(16)) say('PR #482 is up and #incidents is in the loop.');
+    if (t >= beat(14)) tool('vercel', 'deploy', 'target: "production"', '<span class="g">shop.com is live</span>', '');
+    if (t >= beat(15)) tool('slack', 'post_message', 'channel: "#design"', 'posted');
+    if (t >= beat(16)) say('The new onboarding is live on shop.com, and #design knows.');
   }
   // input box: shows what's being typed on the phone
   const draft = t >= TYPE_FROM && t < SEND ? esc(typed(t)) : '';
@@ -292,7 +299,7 @@ function phone(t) {
 const CAPTIONS = [
   [0.3, 3.5, 'Put <span>tui2web</span> in front of any command.'],
   [3.8, beat(3), 'Your terminal, <span>on your phone.</span>'],
-  [beat(3), beat(8), 'Prod is down? <span>Approve the fix from anywhere.</span>'],
+  [beat(3), beat(8), 'Claude builds. <span>You approve from anywhere.</span>'],
   [beat(8), END - 0.2, 'Bathroom break? <span>Bring Claude with you.</span>'],
 ];
 
