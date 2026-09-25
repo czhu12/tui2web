@@ -45,15 +45,18 @@ node scripts/e2e.mjs     # end-to-end test against the running relay
 node scripts/restart.mjs # session survives a relay restart (starts its own relay)
 node scripts/startup.mjs  # Enter-to-start screen, Ctrl+\ link hotkey, tui2web ls
 node scripts/alias.mjs    # shell aliases/functions run through $SHELL -ic
+node scripts/tailscale.mjs # --tailscale per-session relays and `tui2web use` (fake tailscale)
 ```
 
 To test on your phone over Wi-Fi, run the relay with `PUBLIC_URL=http://<your-LAN-ip>:8787`.
 
-CLI options: `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--no-wait`, `--hotkey <key>`. The link stays on screen until you press Enter, because full-screen TUIs clear it. After that, Ctrl+\\ shows it again and `tui2web ls` lists running sessions.
+CLI options: `--tailscale`, `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password`, `--no-qr`, `--no-wait`, `--hotkey <key>`. The link stays on screen until you press Enter, because full-screen TUIs clear it. After that, Ctrl+\\ shows it again and `tui2web ls` lists running sessions.
 
 ## Running your own relay
 
-`tui2web relay` starts one from the CLI. [docs/self-hosting.md](docs/self-hosting.md) covers exposing it with Cloudflare (quick tunnel, your own domain, or Docker with a tunnel token) and Tailscale.
+With Tailscale, `tui2web --tailscale claude` needs no setup: each session runs its own relay in the CLI process, bound to the machine's Tailscale addresses (IPv4 and IPv6, since MagicDNS names resolve to both), on the first free port from 8787. `tui2web use tailscale` makes that the default. `node scripts/tailscale.mjs` tests it with a fake `tailscale` binary.
+
+Otherwise, `tui2web relay` starts one from the CLI. [docs/self-hosting.md](docs/self-hosting.md) covers Tailscale, running a relay on your LAN, and Docker on a server.
 
 ### Docker
 

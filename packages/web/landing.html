@@ -57,10 +57,10 @@
   "mainEntity": [
     {
       "@type": "Question",
-      "name": "How do I use Claude Code from my phone?",
+      "name": "How do I use my coding agent from my phone?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Install tui2web with npm install -g tui2web, then start Claude Code through it: tui2web claude. It prints a private link and a QR code. Scan it with your phone and you get the same live Claude Code session in your phone's browser, with extra keys like Esc, Tab and ⇧Tab."
+        "text": "Install tui2web with npm install -g tui2web, then put tui2web in front of the command you'd normally run: tui2web claude, tui2web codex, tui2web opencode and so on. It prints a private link and a QR code. Scan it with your phone and you get the same live session in your phone's browser, with extra keys like Esc, Tab and ⇧Tab."
       }
     },
     {
@@ -76,7 +76,7 @@
       "name": "How is this different from SSH-ing in from my phone?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "With SSH you start a new, separate shell. tui2web shares the session that's already running on your computer, and both screens stay in sync. You can start Claude Code at your desk, carry on from your phone, and come back to find your laptop terminal exactly where the conversation is. It also works in any mobile browser, with no SSH app or keys."
+        "text": "With SSH you start a new, separate shell. tui2web shares the session that's already running on your computer, and both screens stay in sync. You can start your agent at your desk, carry on from your phone, and come back to find your laptop terminal exactly where you left it. It also works in any mobile browser, with no SSH app or keys."
       }
     },
     {
@@ -92,23 +92,15 @@
       "name": "Is it secure?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, run your own relay (see below)."
+        "text": "Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, keep it on your own devices with Tailscale (see below)."
       }
     },
     {
       "@type": "Question",
-      "name": "I don't trust your relay. Can I run my own?",
+      "name": "How do I get a fully secure, private connection?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes, and it's one command. tui2web relay starts a relay on your computer. To reach it from your phone, put it behind a Cloudflare Tunnel (cloudflared tunnel --url http://localhost:8787). Then run tui2web --relay https://your-relay claude. The self-hosting guide covers quick tunnels, your own domain and Docker."
-      }
-    },
-    {
-      "@type": "Question",
-      "name": "What if I want it really secure?",
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": "Run your own relay and reach it over Tailscale. Install Tailscale on your computer and your phone, run tui2web relay, then tui2web --relay http://your-computer:8787 claude. Traffic between your phone and your computer is encrypted end to end with WireGuard, and nothing is exposed to the internet: no public relay, no Cloudflare, no open ports. Tailscale's servers only help your devices find each other and never see your terminal. Add tui2web set-password for a second layer. See the self-hosting guide."
+        "text": "Use Tailscale. Install it on your computer and your phone, then run tui2web --tailscale <command>. Your computer runs the relay itself, so nothing goes through tui2web.com, and only your own Tailscale devices can reach it. Traffic between your phone and your computer is encrypted end to end with WireGuard, and nothing is exposed to the internet: no public relay, no open ports. Tailscale's servers only help your devices find each other and never see your terminal. Run tui2web use tailscale to make it the default, and add tui2web set-password for a second layer. See the self-hosting guide."
       }
     },
     {
@@ -117,6 +109,14 @@
       "acceptedAnswer": {
         "@type": "Answer",
         "text": "The session reconnects on its own and the screen comes back as it was, including when the relay restarts. The app itself runs on your computer, so the computer needs to stay on and awake."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How do I update tui2web?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Run npm install -g tui2web@latest, then check with tui2web --version. Your password and settings in ~/.tui2web are kept. Sessions that are already running keep the old version until you restart them. If you use npx, npx tui2web@latest claude always runs the newest release. Self-hosting? tui2web relay updates along with the CLI; for Docker, rebuild the image."
       }
     },
     {
@@ -285,6 +285,8 @@
       tr:last-child td { border-bottom: 0; }
       td:first-child { padding-right: 24px; width: 42%; }
       td code { font-size: 14px; color: var(--text); white-space: nowrap; }
+      tr.group th { text-align: left; padding: 22px 0 6px; font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); border-bottom: 1px solid var(--border); }
+      tr.group:first-child th { padding-top: 0; }
       td:last-child { color: var(--muted); }
 
 
@@ -297,6 +299,11 @@
       .faq details[open] summary::after { content: "−"; }
       .faq details p { margin: 0 0 18px; color: var(--muted); }
       .faq code { color: var(--text); font-size: 14px; }
+
+      /* Keyboard shortcuts, drawn as keycaps */
+      .shortcut { white-space: nowrap; }
+      kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; font: 600 13px/1.5 var(--mono); color: var(--text); text-align: center;
+            background: var(--bg-raised); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; vertical-align: 1px; }
 
       footer { border-top: 1px solid var(--border); padding: 32px 0 48px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 12px 24px; justify-content: space-between; }
       footer nav { padding: 0; gap: 20px; display: flex; }
@@ -313,6 +320,7 @@
         td { display: block; width: auto !important; padding: 0; border: 0; }
         td:first-child { padding-top: 14px; }
         tr { display: block; border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+        tr.group th { display: block; border-bottom: 0; padding-bottom: 8px; }
         td code { white-space: normal; word-break: break-word; }
       }
     </style>
@@ -336,7 +344,7 @@
       <header class="hero">
         <h1>Your Terminal, <span>on the Web</span></h1>
         <p class="lede">
-          Kick off Claude Code, Codex, opencode or Oh My Pi, then go for a walk.
+          Kick off your coding agent, then go for a walk.
           <code>tui2web</code> puts the session on your phone through a private, encrypted link, so you can check in, answer its questions and keep the work moving from anywhere.
         </p>
         <p class="aside">Your agent keeps working. Monitor the progress. Go touch grass.</p>
@@ -447,7 +455,7 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
         <div class="steps">
           <div class="card">
             <h3>Run it</h3>
-            <p>Put <code>tui2web</code> in front of any command. It prints a private link and a QR code, and waits for you to press Enter before starting the app. Lost it? Press Ctrl+\ to bring it back.</p>
+            <p>Put <code>tui2web</code> in front of any command. It prints a private link and a QR code, and waits for you to press Enter before starting the app. Lost it? Press <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>\</kbd></span> to bring it back.</p>
           </div>
           <div class="card">
             <h3>Scan the code</h3>
@@ -529,16 +537,20 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
         <h2>Cheat sheet</h2>
         <p class="section-lede">Everything you need, in one table.</p>
         <table>
-          <tr><td><code>tui2web &lt;command&gt; [args…]</code></td><td>Run a command and share it. For example <code>tui2web claude</code>, <code>tui2web opencode</code> or <code>tui2web bash</code>.</td></tr>
-          <tr><td><code>Ctrl+\</code></td><td>While the app runs, show the link and QR code again. Press any key to go back.</td></tr>
+          <tr class="group"><th colspan="2">Commands</th></tr>
+          <tr><td><code>tui2web &lt;command&gt; [args…]</code></td><td>Run a command and share it. For example <code>tui2web claude</code>, <code>tui2web codex</code> or <code>tui2web opencode</code>.</td></tr>
           <tr><td><code>tui2web ls</code></td><td>List your running sessions and their links, from any terminal.</td></tr>
-          <tr><td><code>--no-wait</code></td><td>Start the app right away instead of waiting for Enter on the link screen.</td></tr>
-          <tr><td><code>--hotkey &lt;key&gt;</code></td><td>Change the Ctrl+\ key, for example <code>ctrl-^</code> or <code>ctrl-g</code>, or turn it off with <code>none</code>.</td></tr>
-          <tr><td><code>--no-qr</code></td><td>Don't print the QR code.</td></tr>
-          <tr><td><code>tui2web set-password</code></td><td>Set a password so you can open sessions without the link.</td></tr>
-          <tr><td><code>--no-password</code></td><td>For this session, only accept the link's token.</td></tr>
-          <tr><td><code>--relay &lt;url&gt;</code></td><td>Use your own relay (or set <code>TUI2WEB_RELAY</code>).</td></tr>
+          <tr><td><code>tui2web set-password</code></td><td>Set a password for opening your sessions without the link, handy when typing the URL on your phone. Only a hash is stored.</td></tr>
+          <tr><td><code>tui2web clear-password</code></td><td>Remove the password. Sessions then only open with the link.</td></tr>
           <tr><td><code>tui2web relay</code></td><td>Run your own relay. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-hosting guide</a>.</td></tr>
+          <tr class="group"><th colspan="2">While it’s running</th></tr>
+          <tr><td><span class="shortcut"><kbd>Ctrl</kbd>+<kbd>\</kbd></span></td><td>Show the link and QR code again. Press any key to go back.</td></tr>
+          <tr class="group"><th colspan="2">Options</th></tr>
+          <tr><td><code>--no-wait</code></td><td>Start the app right away instead of waiting for Enter on the link screen.</td></tr>
+          <tr><td><code>--hotkey &lt;key&gt;</code></td><td>Change the <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>\</kbd></span> key, for example <code>ctrl-^</code> or <code>ctrl-g</code>, or turn it off with <code>none</code>.</td></tr>
+          <tr><td><code>--no-password</code></td><td>For this session, only accept the link’s token, even if you’ve set a password.</td></tr>
+          <tr><td><code>--no-qr</code></td><td>Don’t print the QR code.</td></tr>
+          <tr><td><code>--relay &lt;url&gt;</code></td><td>Use your own relay (or set <code>TUI2WEB_RELAY</code>).</td></tr>
         </table>
       </section>
 
@@ -546,8 +558,8 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
         <h2>FAQ</h2>
         <div class="faq">
           <details>
-            <summary><span>How do I use Claude Code from my phone?</span></summary>
-            <p>Install tui2web with <code>npm install -g tui2web</code>, then start Claude Code through it: <code>tui2web claude</code>. It prints a private link and a QR code. Scan it with your phone and you get the same live Claude Code session in your phone's browser, with extra keys like Esc, Tab and ⇧Tab.</p>
+            <summary><span>How do I use my coding agent from my phone?</span></summary>
+            <p>Install tui2web with <code>npm install -g tui2web</code>, then put <code>tui2web</code> in front of the command you'd normally run: <code>tui2web claude</code>, <code>tui2web codex</code>, <code>tui2web opencode</code> and so on. It prints a private link and a QR code. Scan it with your phone and you get the same live session in your phone's browser, with extra keys like Esc, Tab and ⇧Tab.</p>
           </details>
           <details>
             <summary><span>Do I need SSH, a VPN or port forwarding?</span></summary>
@@ -555,27 +567,27 @@ Press <span class="b">Enter</span> to start claude <span class="d">(Ctrl+C to ca
           </details>
           <details>
             <summary><span>How is this different from SSH-ing in from my phone?</span></summary>
-            <p>With SSH you start a new, separate shell. tui2web shares the session that's already running on your computer, and both screens stay in sync. You can start Claude Code at your desk, carry on from your phone, and come back to find your laptop terminal exactly where the conversation is. It also works in any mobile browser, with no SSH app or keys.</p>
+            <p>With SSH you start a new, separate shell. tui2web shares the session that's already running on your computer, and both screens stay in sync. You can start your agent at your desk, carry on from your phone, and come back to find your laptop terminal exactly where you left it. It also works in any mobile browser, with no SSH app or keys.</p>
           </details>
           <details>
             <summary><span>Which apps does it work with?</span></summary>
-            <p>Anything that runs in a terminal: Claude Code, Codex, opencode, Oh My Pi, Gemini CLI, aider, vim, or a plain shell. Full-screen apps work too. Press Ctrl+\ at any time to bring the link back.</p>
+            <p>Anything that runs in a terminal: Claude Code, Codex, opencode, Oh My Pi, Gemini CLI, aider, vim, or a plain shell. Full-screen apps work too. Press <span class="shortcut"><kbd>Ctrl</kbd>+<kbd>\</kbd></span> at any time to bring the link back.</p>
           </details>
           <details>
             <summary><span>Is it secure?</span></summary>
-            <p>Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, run your own relay (see below).</p>
+            <p>Each session has a random ID and a secret token, and nobody can open it without the link or your tui2web password. Traffic is encrypted on the way to and from the relay, but the relay can see what's in your session, so treat the link like a password. If that matters for your work, keep it on your own devices with Tailscale (see below).</p>
           </details>
           <details>
-            <summary><span>I don't trust your relay. Can I run my own?</span></summary>
-            <p>Yes, and it's one command. <code>tui2web relay</code> starts a relay on your computer. To reach it from your phone, put it behind a Cloudflare Tunnel (<code>cloudflared tunnel --url http://localhost:8787</code>). Then run <code>tui2web --relay https://your-relay claude</code>. The <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md">self-hosting guide</a> covers quick tunnels, your own domain and Docker.</p>
-          </details>
-          <details>
-            <summary><span>What if I want it <em>really</em> secure?</span></summary>
-            <p>Run your own relay and reach it over <a href="https://tailscale.com">Tailscale</a>. Install Tailscale on your computer and your phone, run <code>tui2web relay</code>, then <code>tui2web --relay http://your-computer:8787 claude</code>. Traffic between your phone and your computer is encrypted end to end with WireGuard, and nothing is exposed to the internet: no public relay, no Cloudflare, no open ports. Tailscale's servers only help your devices find each other and never see your terminal. Add <code>tui2web set-password</code> for a second layer. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md#most-private-tailscale">self-hosting guide</a>.</p>
+            <summary><span>How do I get a fully secure, private connection?</span></summary>
+            <p>Use <a href="https://tailscale.com">Tailscale</a>. Install it on your computer and your phone, then run <code>tui2web --tailscale &lt;command&gt;</code>. Your computer runs the relay itself, so nothing goes through tui2web.com, and only your own Tailscale devices can reach it. Traffic between your phone and your computer is encrypted end to end with WireGuard, and nothing is exposed to the internet: no public relay, no open ports. Tailscale's servers only help your devices find each other and never see your terminal. Run <code>tui2web use tailscale</code> to make it the default, and add <code>tui2web set-password</code> for a second layer. See the <a href="https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md#most-private-tailscale">self-hosting guide</a>.</p>
           </details>
           <details>
             <summary><span>What happens if my connection drops?</span></summary>
             <p>The session reconnects on its own and the screen comes back as it was, including when the relay restarts. The app itself runs on your computer, so the computer needs to stay on and awake.</p>
+          </details>
+          <details>
+            <summary><span>How do I update tui2web?</span></summary>
+            <p>Run <code>npm install -g tui2web@latest</code>, then check with <code>tui2web --version</code>. Your password and settings in <code>~/.tui2web</code> are kept. Sessions that are already running keep the old version until you restart them. If you use <code>npx</code>, <code>npx tui2web@latest claude</code> always runs the newest release. Self-hosting? <code>tui2web relay</code> updates along with the CLI; for Docker, rebuild the image.</p>
           </details>
           <details>
             <summary><span>Is tui2web free?</span></summary>

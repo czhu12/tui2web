@@ -1,33 +1,38 @@
 #!/usr/bin/env node
 import { StringDecoder } from 'node:string_decoder';
-import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
 import { hashPassword, loadConfig, promptHidden, saveConfig } from './config.ts';
 import { RelayLink } from './link.ts';
+import { DEFAULT_RELAY_PORT, startLocalRelay } from './local-relay.ts';
 import { DEFAULT_HOTKEY, extractHotkey, isNotAKeyPress, parseHotkey, type Hotkey } from './hotkey.ts';
 import { ScreenMirror } from './mirror.ts';
 import { MouseModes } from './mouse.ts';
 import { listSessions, registerSession } from './registry.ts';
 import { resolveCommand } from './resolve.ts';
 import { pty } from './pty.ts';
+import { tailscaleAddress } from './tailscale.ts';
 
 const require = createRequire(import.meta.url);
 const qrcode: { generate(text: string, opts: { small: boolean }, cb: (qr: string) => void): void } = require('qrcode-terminal');
 const { version } = require('../package.json');
 
 const DEFAULT_RELAY = 'https://tui2web.com';
+/** Relay setting that runs a private relay in each session, reachable over Tailscale. */
+const TAILSCALE = 'tailscale';
 
 const HELP = `tui2web ${version}: open a terminal program on your phone
 
 Usage:
   tui2web [options] <command> [args...]
   tui2web ls                 Show links for your running sessions
+  tui2web use <relay>        Choose the default relay: tailscale, public, or a URL
   tui2web relay [options]    Run your own relay (see: tui2web relay --help)
   tui2web set-password       Set the password for opening sessions without the link
   tui2web clear-password     Remove the saved password
 
 Options:
+  --tailscale      Keep the session on your tailnet: this computer runs the relay
+                   and only your Tailscale devices can reach it
   --relay <url>    Relay server (default: $TUI2WEB_RELAY, config, or ${DEFAULT_RELAY})
   --no-password    Only accept the link's token for this session, not your password
   --no-qr          Don't print a QR code
@@ -62,6 +67,7 @@ function parseArgs(argv: string[]): Options {
     else if (arg.startsWith('--hotkey=')) opts.hotkey = arg.slice('--hotkey='.length);
     else if (arg === '--relay') opts.relay = argv[++i] ?? exit(2, '--relay needs a URL');
     else if (arg.startsWith('--relay=')) opts.relay = arg.slice('--relay='.length);
+    else if (arg === '--tailscale') opts.relay = TAILSCALE;
     else exit(2, `Unknown option ${arg}\n\n${HELP}`);
   }
   opts.command = argv.slice(i);
@@ -87,6 +93,7 @@ async function main() {
   if (argv[0] === 'set-password') return setPassword();
   if (argv[0] === 'ls') return listCommand();
   if (argv[0] === 'relay') return relayCommand(argv.slice(1));
+  if (argv[0] === 'use') return useCommand(argv.slice(1));
   if (argv[0] === 'clear-password') {
     const { password: _, ...rest } = loadConfig();
     saveConfig(rest);
@@ -97,7 +104,8 @@ async function main() {
   if (opts.command.length === 0) exit(2, HELP);
 
   const config = loadConfig();
-  const relay = opts.relay ?? process.env.TUI2WEB_RELAY ?? config.relay ?? DEFAULT_RELAY;
+  let relay = opts.relay ?? process.env.TUI2WEB_RELAY ?? config.relay ?? DEFAULT_RELAY;
+  const onTailnet = relay === TAILSCALE;
   const password = opts.password ? (config.password ?? null) : null;
   const hotkeySpec = opts.hotkey ?? config.hotkey ?? DEFAULT_HOTKEY;
   const hotkey = parseHotkey(hotkeySpec);
@@ -105,6 +113,25 @@ async function main() {
   const file = opts.command[0];
   const launch = resolveCommand(opts.command);
   const local = () => ({ cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 });
+
+  // Tailscale: this process hosts its own relay, bound to the tailnet address
+  // only, so it lives and dies with this session and nothing else can reach it.
+  if (onTailnet) {
+    try {
+      const ts = await tailscaleAddress();
+      const { port } = await startLocalRelay({
+        port: DEFAULT_RELAY_PORT,
+        scan: true,
+        host: ts.ips,
+        publicUrl: (port) => `http://${ts.host}:${port}`,
+        // Logging would draw over the app.
+        log: () => {},
+      });
+      relay = `http://${ts.ip}:${port}`;
+    } catch (err) {
+      exit(1, `tui2web: ${(err as Error).message}`);
+    }
+  }
 
   let term: ReturnType<typeof pty.spawn> | null = null;
   let size = local();
@@ -137,7 +164,7 @@ async function main() {
     exit(1, `tui2web: ${(err as Error).message}`);
   }
 
-  const banner = bannerLines(session.url, opts.qr, password !== null, hotkey);
+  const banner = bannerLines(session.url, opts.qr, password !== null, hotkey, onTailnet);
   process.stdout.write(banner.join('\n') + '\n');
 
   // Full-screen programs clear the screen as soon as they start, which would
@@ -270,11 +297,12 @@ function waitForEnter(command: string): Promise<boolean> {
   });
 }
 
-function bannerLines(url: string, qr: boolean, passwordEnabled: boolean, hotkey: Hotkey): string[] {
+function bannerLines(url: string, qr: boolean, passwordEnabled: boolean, hotkey: Hotkey, tailnet: boolean): string[] {
   const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
   const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
   const lines = ['', `${bold('tui2web')} session is live:`, '', `  ${bold(url)}`, ''];
   if (qr) qrcode.generate(url, { small: true }, (code) => lines.push(...code.split('\n')));
+  if (tailnet) lines.push(dim('Private to your tailnet: open it on a device signed into Tailscale.'));
   lines.push(dim(passwordEnabled ? 'Anyone with this link, or your tui2web password, can control this terminal.' : 'Anyone with this link can control this terminal.'));
   if (hotkey) lines.push(dim(`Press ${hotkey.label} any time to show this link again.`));
   lines.push('');
@@ -285,31 +313,30 @@ const RELAY_HELP = `tui2web relay: run your own relay server
 
 Usage:
   tui2web relay [--port 8787] [--host <addr>] [--public-url <url>]
+  tui2web relay --tailscale [--port 8787]
 
 Options:
   --port <n>          Port to listen on (default: 8787)
   --host <addr>       Interface to bind (default: all, IPv6 and IPv4)
   --public-url <url>  URL people reach the relay at, used in session links.
                       Default: taken from each request, which works behind
-                      proxies and tunnels like Cloudflare Tunnel.
+                      reverse proxies.
+  --tailscale         Listen on this computer's Tailscale address only, with
+                      links using its MagicDNS name
 
 Then point the CLI at it:
   tui2web --relay http://localhost:8787 claude
 
-To use it from your phone away from home, put it behind a tunnel, e.g.:
-  cloudflared tunnel --url http://localhost:8787
+For a private relay per session, you don't need this command at all:
+  tui2web --tailscale claude
 Guide: https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md
 `;
 
-type StartRelay = (opts: { port: number; host?: string; publicUrl?: string; webDist: string }) => {
-  listening: Promise<void>;
-  close(): Promise<void>;
-};
-
 async function relayCommand(argv: string[]) {
-  let port = 8787;
-  let host: string | undefined;
+  let port = DEFAULT_RELAY_PORT;
+  let host: string | string[] | undefined;
   let publicUrl: string | undefined;
+  let tailscale = false;
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     const value = () => argv[++i] ?? exit(2, `${arg} needs a value`);
@@ -317,34 +344,90 @@ async function relayCommand(argv: string[]) {
     else if (arg === '--port') port = Number(value());
     else if (arg === '--host') host = value();
     else if (arg === '--public-url') publicUrl = value();
+    else if (arg === '--tailscale') tailscale = true;
     else exit(2, `Unknown option ${arg}\n\n${RELAY_HELP}`);
   }
   if (!Number.isInteger(port) || port <= 0 || port > 65535) exit(2, '--port needs a port number');
+  if (tailscale && (host || publicUrl)) exit(2, '--tailscale sets the host and public URL itself; drop --host and --public-url');
 
-  // Published package: the relay is compiled into dist/relay with the web
-  // viewer in dist/web. Running from the repo: use the sources directly.
-  const compiled = new URL('./relay/relay.js', import.meta.url);
-  const fromDist = existsSync(fileURLToPath(compiled));
-  const source = '../../server/src/relay.ts';
-  const { startRelay }: { startRelay: StartRelay } = await import(fromDist ? compiled.href : source);
-  const webDist = fileURLToPath(new URL(fromDist ? './web/' : '../../web/dist/', import.meta.url));
+  let url = `http://localhost:${port}`;
+  if (tailscale) {
+    try {
+      const ts = await tailscaleAddress();
+      host = ts.ips;
+      url = publicUrl = `http://${ts.host}:${port}`;
+    } catch (err) {
+      exit(1, `tui2web relay: ${(err as Error).message}`);
+    }
+  }
 
-  const relay = startRelay({ port, host, publicUrl, webDist });
+  let relay: Awaited<ReturnType<typeof startLocalRelay>>['relay'];
   try {
-    await relay.listening;
+    ({ relay } = await startLocalRelay({ port, host, publicUrl: publicUrl === undefined ? undefined : () => publicUrl! }));
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
     exit(1, code === 'EADDRINUSE' ? `Port ${port} is already in use. Try another, e.g. --port ${port + 1}.` : `tui2web relay: ${(err as Error).message}`);
   }
-  const local = `http://localhost:${port}`;
-  console.log(`\nUse it:  tui2web --relay ${local} claude`);
-  console.log(`Phone access from anywhere: cloudflared tunnel --url ${local}  (then use the tunnel URL as --relay)\n`);
+  console.log(`\nUse it:  tui2web --relay ${url} claude`);
+  if (tailscale) console.log('Only devices on your tailnet can reach it.\n');
+  else console.log('Phone access from anywhere, privately: tui2web --tailscale claude\n');
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => {
       relay.close().then(() => process.exit(0));
       setTimeout(() => process.exit(0), 3000).unref();
     });
   }
+}
+
+const USE_HELP = `tui2web use: choose the default relay
+
+Usage:
+  tui2web use tailscale   Each session runs a private relay on this computer,
+                          reachable only from your Tailscale devices
+  tui2web use public      The public relay, ${DEFAULT_RELAY}
+  tui2web use <url>       Your own relay, e.g. https://relay.example.com
+  tui2web use             Show the current choice
+
+--relay, --tailscale and $TUI2WEB_RELAY still override it for one session.
+`;
+
+async function useCommand(argv: string[]) {
+  const choice = argv[0];
+  const config = loadConfig();
+  if (!choice) {
+    const current = config.relay ?? DEFAULT_RELAY;
+    console.log(current === TAILSCALE ? 'tailscale (a private relay per session, on your tailnet)' : current);
+    if (process.env.TUI2WEB_RELAY) console.log(`(overridden by $TUI2WEB_RELAY=${process.env.TUI2WEB_RELAY})`);
+    return;
+  }
+  if (choice === '-h' || choice === '--help') exit(0, USE_HELP);
+  if (argv.length > 1) exit(2, USE_HELP);
+
+  if (choice === 'public') {
+    const { relay: _, ...rest } = config;
+    saveConfig(rest);
+    return console.log(`Sessions will use the public relay, ${DEFAULT_RELAY}.`);
+  }
+  if (choice === TAILSCALE) {
+    try {
+      const ts = await tailscaleAddress();
+      saveConfig({ ...config, relay: TAILSCALE });
+      console.log(`Sessions will run a private relay on this computer, with links like http://${ts.host}:${DEFAULT_RELAY_PORT}/…`);
+      console.log('Open them on a phone signed into the same Tailscale account.');
+    } catch (err) {
+      exit(1, `tui2web: ${(err as Error).message}`);
+    }
+    return;
+  }
+  let url: URL;
+  try {
+    url = new URL(choice);
+  } catch {
+    exit(2, `"${choice}" is not a URL.\n\n${USE_HELP}`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') exit(2, 'The relay URL must start with http:// or https://');
+  saveConfig({ ...config, relay: choice.replace(/\/+$/, '') });
+  console.log(`Sessions will use the relay at ${choice.replace(/\/+$/, '')}.`);
 }
 
 function listCommand() {

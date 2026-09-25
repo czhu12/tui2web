@@ -1,5 +1,6 @@
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import type { TLSSocket } from 'node:tls';
+import type { Duplex } from 'node:stream';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { WebSocketServer, type WebSocket } from 'ws';
@@ -15,12 +16,16 @@ const CLOSE_NOT_FOUND: CloseNotFound = 4404;
 
 export type RelayOptions = {
   port: number;
-  /** Interface to bind. Default '::' (IPv6 and IPv4), falling back to 0.0.0.0. */
-  host?: string;
+  /**
+   * Interface(s) to bind. Default '::' (IPv6 and IPv4), falling back to
+   * 0.0.0.0. Several addresses serve the same sessions, e.g. a machine's
+   * Tailscale IPv4 and IPv6, since its MagicDNS name resolves to both.
+   */
+  host?: string | string[];
   /**
    * Base URL for session links, e.g. https://tui2web.com. When omitted it's
    * taken from each request's Host and X-Forwarded-Proto headers, so the relay
-   * works behind a proxy or tunnel (e.g. Cloudflare) without configuration.
+   * works behind a reverse proxy without configuration.
    */
   publicUrl?: string;
   /** Directory with the built web viewer and landing page. */
@@ -58,13 +63,13 @@ export function startRelay(opts: RelayOptions): Relay {
 
   // ---- HTTP -------------------------------------------------------------------
 
-  const server = http.createServer((req, res) => {
+  function onRequest(req: IncomingMessage, res: ServerResponse) {
     handleHttp(req, res).catch((err) => {
       console.error(err);
       if (!res.headersSent) send(res, 500, 'text/plain; charset=utf-8', 'Internal error');
       else res.end();
     });
-  });
+  }
 
   async function handleHttp(req: IncomingMessage, res: ServerResponse) {
     // Never log req.url: it can contain a session token.
@@ -246,7 +251,7 @@ export function startRelay(opts: RelayOptions): Relay {
 
   // ---- WebSockets -------------------------------------------------------------------
 
-  server.on('upgrade', (req, socket, head) => {
+  function onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer) {
     const { pathname } = new URL(req.url ?? '/', 'http://relay');
 
     if (pathname === '/agent') {
@@ -269,7 +274,7 @@ export function startRelay(opts: RelayOptions): Relay {
       trackAlive(ws);
       session.addViewer(ws);
     });
-  });
+  }
 
   function handleAgent(ws: WebSocket, base: string) {
     trackAlive(ws);
@@ -343,31 +348,37 @@ export function startRelay(opts: RelayOptions): Relay {
     }
   }, 30_000).unref();
 
+  const servers: http.Server[] = [];
+  function listen(host: string, fallback: string | null): Promise<void> {
+    const server = http.createServer(onRequest);
+    server.on('upgrade', onUpgrade);
+    servers.push(server);
+    return new Promise<void>((resolve, reject) => {
+      server.on('listening', () => resolve());
+      server.on('error', (err: NodeJS.ErrnoException) => {
+        // Hosts with IPv6 disabled (common in containers) can't bind '::'.
+        if (fallback && (err.code === 'EAFNOSUPPORT' || err.code === 'EADDRNOTAVAIL')) {
+          log('IPv6 unavailable, listening on IPv4 only');
+          host = fallback;
+          fallback = null;
+          server.listen(PORT, host);
+        } else reject(err);
+      });
+      server.listen(PORT, host);
+    }).then(() => log(`tui2web relay listening on ${host}:${PORT} (public URL ${PUBLIC_URL ?? 'taken from each request'})`));
+  }
+
   // Default '::' accepts IPv6 and IPv4. With only '0.0.0.0', clients that
   // resolve localhost to ::1 first (Node 17-19, among others) are refused.
-  let host = opts.host ?? '::';
-  const listening = new Promise<void>((resolve, reject) => {
-    server.on('listening', () => {
-      log(`tui2web relay listening on ${host}:${PORT} (public URL ${PUBLIC_URL ?? 'taken from each request'})`);
-      resolve();
-    });
-    server.on('error', (err: NodeJS.ErrnoException) => {
-      // Hosts with IPv6 disabled (common in containers) can't bind '::'.
-      if (!opts.host && host === '::' && (err.code === 'EAFNOSUPPORT' || err.code === 'EADDRNOTAVAIL')) {
-        log('IPv6 unavailable, listening on IPv4 only');
-        host = '0.0.0.0';
-        server.listen(PORT, host);
-      } else reject(err);
-    });
-  });
-  server.listen(PORT, host);
+  const hosts = opts.host === undefined ? null : ([] as string[]).concat(opts.host);
+  const listening = Promise.all(hosts ? hosts.map((h) => listen(h, null)) : [listen('::', '0.0.0.0')]).then(() => {});
 
   return {
     listening,
     close() {
       clearInterval(heartbeat);
       for (const ws of wss.clients) ws.close(1001, 'relay restarting');
-      return new Promise((resolve) => server.close(() => resolve()));
+      return Promise.all(servers.map((server) => new Promise<void>((resolve) => server.close(() => resolve())))).then(() => {});
     },
   };
 }

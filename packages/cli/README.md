@@ -34,7 +34,8 @@ Only a salted scrypt hash is stored in `~/.tui2web/config.json` and sent to the 
 ```
 tui2web [options] <command> [args...]
 
---relay <url>    Relay server (default: $TUI2WEB_RELAY or the public relay)
+--tailscale      Keep the session on your tailnet (this computer runs the relay)
+--relay <url>    Relay server (default: $TUI2WEB_RELAY, `tui2web use`, or the public relay)
 --no-password    Only accept the link's token for this session
 --no-qr          Don't print a QR code
 --no-wait        Start the command right away instead of waiting for Enter
@@ -52,8 +53,18 @@ Once the program is running, there are two ways to get the link again:
 
 The link is also printed again when the session ends.
 
+## Private sessions with Tailscale
+
+Don't want to go through the public relay? If your computer and phone are on [Tailscale](https://tailscale.com):
+
+```
+tui2web --tailscale claude
+```
+
+The session runs its own relay on your computer, reachable only from your Tailscale devices. Nothing goes through tui2web.com or the open internet. Make it the default with `tui2web use tailscale` (`tui2web use public` switches back).
+
 ## Your own relay
 
-Don't want to go through the public relay? Run your own with `tui2web relay`, put it behind a Cloudflare Tunnel or Tailscale, and use `tui2web --relay <url>`. See the [self-hosting guide](https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md).
+Or run a relay yourself with `tui2web relay` (or on a server with Docker), and use `tui2web --relay <url>` (or `tui2web use <url>`). See the [self-hosting guide](https://github.com/czhu12/tui2web/blob/main/docs/self-hosting.md).
 
 Requires Node.js 16 or newer. Runs on macOS, Linux and Windows (x64 and arm64).

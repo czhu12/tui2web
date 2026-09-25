@@ -66,6 +66,12 @@ jobs:
           TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
           CHROME: /usr/bin/google-chrome
 
+      # Per-session relays on the tailnet, with a fake `tailscale` whose tailnet is loopback.
+      - name: Tailscale mode
+        run: node scripts/tailscale.mjs
+        env:
+          TUI2WEB_CLI_ENTRY: packages/cli/dist/index.js
+
       - name: Relay restart
         run: node scripts/restart.mjs
         env:

@@ -1,13 +1,41 @@
 # Running your own relay
 
-By default, `tui2web` sends your session through the public relay at `tui2web.com`. The relay passes your terminal between your computer and your phone, and it can see what's in the session. If you'd rather not trust it, run your own. It's one command, and your phone can reach it over Tailscale (most private) or a Cloudflare tunnel.
+By default, `tui2web` sends your session through the public relay at `tui2web.com`. The relay passes your terminal between your computer and your phone, and it can see what's in the session. If you'd rather not trust it, keep the session on your own devices with Tailscale (one flag), or run a relay yourself.
+
+## Most private: Tailscale
+
+With [Tailscale](https://tailscale.com), your phone talks to your computer directly over an encrypted WireGuard connection. Nothing is exposed to the internet: there's no public relay and no open ports.
+
+1. Install Tailscale on your computer and your phone, and sign both into the same account.
+2. Run:
 
 ```
-your computer ──▶ your relay ◀── Tailscale or Cloudflare ◀── your phone
- tui2web claude   tui2web relay
+tui2web --tailscale claude
 ```
 
-## 1. Start a relay
+That's it: there's no separate relay to start. The session runs its own relay inside the `tui2web` process, listening only on your computer's Tailscale addresses. The link uses your computer's MagicDNS name, like `http://your-computer.tailnet-name.ts.net:8787/session/…`, or its `100.x.y.z` address if MagicDNS is off.
+
+To make it the default, so plain `tui2web claude` stays on your tailnet:
+
+```
+tui2web use tailscale
+```
+
+(`tui2web use public` switches back. `--relay` still overrides it for one session.)
+
+Each session gets its own relay on the next free port from 8787 (8787, 8788, …), so sessions are independent: quitting or killing one doesn't affect the others. The relay stops when its session ends.
+
+Prefer one long-running relay that sessions connect to? `tui2web relay --tailscale` starts one on your Tailscale addresses and prints the `--relay` URL to use.
+
+Why it's the most private option:
+
+- Traffic is encrypted end to end between your devices. When Tailscale can't connect them directly it routes through its relay servers, but those only forward encrypted packets.
+- Only devices on your tailnet can reach the relay, so nobody else can find it or start sessions on it. It doesn't listen on your Wi-Fi or LAN address at all.
+- Tailscale's coordination servers see which devices you have and when they're online, never your terminal.
+
+The trade-offs: your phone needs the Tailscale app connected, it only works for your own devices, and the link is `http://`. WireGuard still encrypts it, but the browser doesn't treat it as HTTPS.
+
+## Running a relay yourself
 
 The relay ships with the CLI:
 
@@ -16,15 +44,14 @@ npm install -g tui2web
 tui2web relay
 ```
 
-It listens on port 8787 and needs no configuration. Session links use whatever address people reach it at, including a Cloudflare hostname.
+It listens on port 8787 and needs no configuration. Session links use whatever address people reach it at, including behind a reverse proxy.
 
 | Option | Default | |
 |---|---|---|
 | `--port <n>` | `8787` | Port to listen on |
-| `--host <addr>` | all interfaces | Interface to bind, e.g. `127.0.0.1` to accept local connections only (fine behind a tunnel) |
+| `--host <addr>` | all interfaces | Interface to bind, e.g. `127.0.0.1` to accept local connections only (fine behind a reverse proxy) |
 | `--public-url <url>` | taken from each request | Fix the base URL used in session links |
-
-Prefer Docker? `docker build -t tui2web-relay https://github.com/czhu12/tui2web.git`, then `docker run -p 8787:8787 tui2web-relay`.
+| `--tailscale` | off | Listen on your Tailscale addresses only (see above) |
 
 To try it on your computer first:
 
@@ -32,97 +59,18 @@ To try it on your computer first:
 tui2web --relay http://localhost:8787 bash
 ```
 
-## 2. Make it reachable from your phone
+On the same Wi-Fi, your phone can reach it at your computer's LAN address, e.g. `tui2web --relay http://192.168.1.20:8787 claude`.
 
-Pick one option.
-
-### Most private: Tailscale
-
-With [Tailscale](https://tailscale.com), your phone talks to your computer directly over an encrypted WireGuard connection. Nothing is exposed to the internet: there's no public relay, no Cloudflare, and no open ports.
-
-1. Install Tailscale on your computer and your phone, and sign both into the same account.
-2. Start the relay and point the CLI at your computer's Tailscale name:
+### On a server, with Docker
 
 ```
-tui2web relay
-tui2web --relay http://your-computer:8787 claude
+docker build -t tui2web-relay https://github.com/czhu12/tui2web.git
+docker run -p 8787:8787 -e PUBLIC_URL=https://relay.example.com tui2web-relay
 ```
 
-`your-computer` is the machine's name in Tailscale (`tailscale status` lists it). Its `100.x.y.z` address works too.
+Put it behind something that terminates TLS and forwards WebSockets (Caddy, nginx, a load balancer). Run a single instance: sessions live in memory.
 
-Why it's the most private option:
-
-- Traffic is encrypted end to end between your devices. When Tailscale can't connect them directly it routes through its relay servers, but those only forward encrypted packets.
-- Only devices on your tailnet can reach the relay, so nobody else can find it or start sessions on it. To be strict about that, bind the relay to your Tailscale address only: `tui2web relay --host 100.x.y.z`.
-- Tailscale's coordination servers see which devices you have and when they're online, never your terminal.
-
-The trade-offs: your phone needs the Tailscale app connected, it only works for your own devices, and the link is `http://`. WireGuard still encrypts it, but the browser doesn't treat it as HTTPS.
-
-### Cloudflare quick tunnel (no account, one minute)
-
-Install [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (`brew install cloudflared` on macOS), then run it next to the relay:
-
-```
-cloudflared tunnel --url http://localhost:8787
-```
-
-It prints a URL like `https://random-words-here.trycloudflare.com`. Use it as your relay:
-
-```
-tui2web --relay https://random-words-here.trycloudflare.com claude
-```
-
-The URL changes every time `cloudflared` restarts, and Cloudflare offers quick tunnels for testing, without uptime guarantees. For something permanent, use a named tunnel.
-
-### Named Cloudflare tunnel on your own domain
-
-This needs a free Cloudflare account and a domain whose DNS is on Cloudflare. You get a stable address like `https://relay.example.com`.
-
-```
-cloudflared tunnel login
-cloudflared tunnel create tui2web
-cloudflared tunnel route dns tui2web relay.example.com
-```
-
-`tunnel create` prints the path of a credentials file. Put this in `~/.cloudflared/config.yml`:
-
-```yaml
-tunnel: tui2web
-credentials-file: /Users/you/.cloudflared/<TUNNEL-ID>.json
-
-ingress:
-  - hostname: relay.example.com
-    service: http://localhost:8787
-  - service: http_status:404
-```
-
-Start it with `cloudflared tunnel run tui2web`. To keep it running across reboots, install it as a service with `sudo cloudflared service install`.
-
-### A server, with Docker and a Cloudflare tunnel token
-
-To run the relay on a server instead of your laptop, create a tunnel in the Cloudflare dashboard (Zero Trust → Networks → Tunnels). Give it a public hostname whose service is `http://relay:8787`, and copy its token. Then:
-
-```yaml
-# docker-compose.yml
-services:
-  relay:
-    build: https://github.com/czhu12/tui2web.git
-    restart: unless-stopped
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
-    restart: unless-stopped
-```
-
-```
-TUNNEL_TOKEN=... docker compose up -d
-```
-
-No ports are opened on the server. `cloudflared` connects out to Cloudflare, like the tui2web CLI does.
-
-## 3. Point the CLI at your relay
+### Point the CLI at it
 
 Pass it each time:
 
@@ -130,17 +78,12 @@ Pass it each time:
 tui2web --relay https://relay.example.com claude
 ```
 
-Or set it once. The CLI checks, in order: `--relay`, then `$TUI2WEB_RELAY`, then `"relay"` in `~/.tui2web/config.json`.
-
-```json
-{ "relay": "https://relay.example.com" }
-```
+Or set it once with `tui2web use https://relay.example.com`. The CLI checks, in order: `--relay` (or `--tailscale`), then `$TUI2WEB_RELAY`, then the saved choice in `~/.tui2web/config.json`.
 
 Everything else works the same: `tui2web set-password`, the Ctrl+\ link hotkey, `tui2web ls`, and sessions surviving relay restarts.
 
 ## Notes
 
-- **Cloudflare can see your traffic too.** A Cloudflare tunnel decrypts traffic at Cloudflare's edge, so you're trusting Cloudflare instead of tui2web.com. For a path where nobody in the middle can read it, use [Tailscale](#most-private-tailscale).
-- **Who can use your relay.** With a Cloudflare tunnel, anyone who knows its URL can start sessions on it, which uses your bandwidth. They can't see or control your sessions, because those still need the link's token or your password.
-- **WebSockets.** Cloudflare passes them through. It closes connections that are idle for about 100 seconds, and the relay pings every 30 seconds to prevent that.
+- **Who can use your relay.** Anyone who can reach a relay can start sessions on it, which uses your bandwidth. They can't see or control your sessions, because those still need the link's token or your password. With Tailscale, only your own devices can reach it.
+- **WebSockets.** Proxies in front of the relay must pass WebSockets through. The relay pings every 30 seconds, which keeps connections alive through proxies with idle timeouts.
 - **Health check.** `GET /healthz` returns `ok` and the number of active sessions.
