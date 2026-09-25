@@ -164,6 +164,12 @@ const QR = `▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄�
 $('vf-qr').textContent = QR;
 
 // ---- timeline helpers ----
+// Key moments sit on the music's beat grid: the soundtrack's beat drops at the
+// reveal (REVEAL, the session appearing on the phone), then beats every BEAT
+// seconds. Retime these if the music changes (see render.mjs).
+const REVEAL = 4.6, BEAT = 0.692;
+const beat = (k) => REVEAL + k * BEAT;
+const APPROVED = beat(6) + 0.35; // the tap on "1" lands on beat 6
 const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
 const ease = (x) => { x = clamp(x); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
 const ramp = (t, start, dur) => ease((t - start) / dur);                          // 0 -> 1
@@ -208,17 +214,17 @@ function claude(t, width) {
   user('the login page is slow on mobile, can you look into it?');
   tool('Read', 'src/routes/login.ts', 'Read 84 lines');
   say('Each request looks the session up in the database. I\'ll cache it in memory.', '');
-  if (t < 9.0) {
+  if (t < APPROVED) {
     out.push('<span class="c">●</span> <span class="g">Update</span>(src/routes/login.ts)');
     out.push('  Do you want to make this edit?');
-    const pressed = t >= 8.55;
+    const pressed = t >= beat(6);
     out.push(`  <span class="sel">❯ 1. Yes</span>`);
     out.push(`    2. No, tell Claude what to do`);
     if (pressed) out[out.length - 2] = `  <span class="g">❯ 1. Yes</span>`;
   } else {
     tool('Update', 'src/routes/login.ts', 'Added 12 lines, removed 3');
-    if (t >= 10.0) tool('Bash', 'npm test', t >= 11.0 ? '42 passed' : 'Running…', t >= 11.0 ? 'g' : 'd');
-    if (t >= 12.0) say('Done. p95 is down from 1,840ms to 210ms.');
+    if (t >= beat(8)) tool('Bash', 'npm test', t >= beat(9) ? '42 passed' : 'Running…', t >= beat(9) ? 'g' : 'd');
+    if (t >= beat(11)) say('Done. p95 is down from 1,840ms to 210ms.');
   }
   // input box and status line
   out.push(`<div class="input"><span class="d">&gt;</span> ${t >= 4.6 ? cursor(t) : ''}</div>`);
@@ -256,8 +262,8 @@ function phone(t) {
 const CAPTIONS = [
   [0.3, 3.5, 'Put <span>tui2web</span> in front of any command.'],
   [3.8, 6.6, 'Your terminal, <span>on your phone.</span>'],
-  [6.8, 9.8, 'Claude needs you? <span>Answer from anywhere.</span>'],
-  [10.0, 14.8, 'Bathroom break? <span>Bring Claude with you.</span>'],
+  [beat(3), beat(7) + 0.3, 'Claude needs you? <span>Answer from anywhere.</span>'],
+  [beat(8), beat(15) - 0.2, 'Bathroom break? <span>Bring Claude with you.</span>'],
 ];
 
 window.DURATION = 20;
@@ -265,13 +271,13 @@ window.seek = function (t) {
   // Laptop
   $('laptop-term').innerHTML = laptop(t);
   $('laptop-term').classList.toggle('session', t >= 4.6);
-  $('laptop-dim').style.opacity = window_(t, 6.9, 14.9, 0.5);
-  $('laptop').style.opacity = 1 - ramp(t, 14.6, 0.5);
+  $('laptop-dim').style.opacity = window_(t, beat(3), beat(15), 0.4);
+  $('laptop').style.opacity = 1 - ramp(t, beat(15) - 0.4, 0.4);
 
   // Phone: slides in, scans, then shows the session
   const inY = (1 - ramp(t, 2.9, 0.8)) * 110;
   $('phone').style.transform = `translateY(${inY}%)`;
-  $('phone').style.opacity = 1 - ramp(t, 14.6, 0.5);
+  $('phone').style.opacity = 1 - ramp(t, beat(15) - 0.4, 0.4);
   $('camera').style.opacity = t < 4.6 ? 1 : 1 - ramp(t, 4.6, 0.25);
   $('scan-hint').style.opacity = 1 - ramp(t, 4.0, 0.2);
   $('open-pill').style.opacity = ramp(t, 4.05, 0.2);
@@ -280,17 +286,17 @@ window.seek = function (t) {
   $('phone-term').innerHTML = phone(t);
 
   // Key row -> key pad for answering the prompt, with a tap on "1"
-  const pad = t >= 7.4 && t < 9.6;
+  const pad = t >= beat(4) && t < beat(7) + 0.15;
   $('keyrow').style.display = pad ? 'none' : 'flex';
   $('pad').style.display = pad ? 'grid' : 'none';
-  $('key1').classList.toggle('pressed', t >= 8.5 && t < 8.9);
+  $('key1').classList.toggle('pressed', t >= beat(6) && t < APPROVED);
   const tap = document.getElementById('tap');
   const k = $('key1').getBoundingClientRect(), s = document.querySelector('.screen').getBoundingClientRect();
   tap.style.left = `${k.left - s.left + k.width / 2 - 37}px`;
   tap.style.top = `${k.top - s.top + k.height / 2 - 37}px`;
-  const tapIn = pad ? window_(t, 8.1, 9.1, 0.25) : 0;
+  const tapIn = pad ? window_(t, beat(5), APPROVED + 0.2, 0.25) : 0;
   tap.style.opacity = tapIn;
-  tap.style.transform = `scale(${t >= 8.45 && t < 8.75 ? 0.82 : 1})`;
+  tap.style.transform = `scale(${t >= beat(6) - 0.06 && t < beat(6) + 0.2 ? 0.82 : 1})`;
 
   // Captions
   let cap = '', op = 0;
@@ -299,8 +305,8 @@ window.seek = function (t) {
   $('caption').style.opacity = op;
 
   // End card
-  $('end').style.opacity = ramp(t, 15.0, 0.6);
-  $('end').style.transform = `scale(${0.97 + 0.03 * ramp(t, 15.0, 0.8)})`;
+  $('end').style.opacity = ramp(t, beat(15) - 0.15, 0.3);
+  $('end').style.transform = `scale(${0.97 + 0.03 * ramp(t, beat(15) - 0.15, 0.6)})`;
 };
 
 window.seek(Number(params.get('t') ?? 0));

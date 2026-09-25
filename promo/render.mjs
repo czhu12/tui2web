@@ -5,7 +5,11 @@
 //   node promo/render.mjs --stills   # a few PNG frames per format, for checking
 //
 // If promo/music.mp3 exists it's mixed in (faded in and out). It's git-ignored:
-// licensed music can't be redistributed on its own.
+// licensed music can't be redistributed on its own. The current cut of
+// "Lofi Hip Hop Funky Midnight Club" (alex-morgan, Pixabay) puts the beat
+// coming back after the breakdown on the reveal; the scene's beat grid
+// (REVEAL/BEAT in scene.html) matches its 86.7 BPM:
+//   ffmpeg -ss 92.12 -t 20 -i promo/music.source.mp3 promo/music.mp3
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { chromium } from 'playwright-core';
