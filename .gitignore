@@ -6,3 +6,9 @@ dist/
 # Promo video: renders, and licensed music (Pixabay forbids redistributing the audio on its own)
 promo/out/
 promo/music.*
+# Local promo work
+promo/collage/
+promo/scene.json
+
+# Local secrets
+.env
