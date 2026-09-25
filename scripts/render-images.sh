@@ -18,7 +18,8 @@ shot() { # <source> <out.png> <width> <height> [extra chrome args...]
   test -s "$out" && echo "rendered $out (${w}x${h})"
 }
 
-shot og/og-image.html public/og.png 1200 630
+# The preview loads web fonts: give it virtual time for them before the shot.
+shot og/og-image.html public/og.png 1200 630 --virtual-time-budget=8000
 # Chrome won't lay out windows narrower than ~500px, so render icons at 512
 # and scale them down (sips ships with macOS).
 TMP="$PROFILE/icons"; mkdir -p "$TMP"

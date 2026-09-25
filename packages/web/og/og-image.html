@@ -1,86 +1,46 @@
 <!doctype html>
-<!-- Source for public/og.png (the link-preview image). Rendered at 1200x630 by scripts/render-images.sh. -->
+<!-- Source for public/og.png (the link-preview image). Rendered at 1200x630 by scripts/render-images.sh.
+     Brutalist, like the landing page; the phone is the still from the promo video (public/promo/phone.jpg). -->
 <html>
 <head>
 <meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;900&family=IBM+Plex+Mono:wght@400;600&display=block" rel="stylesheet">
 <style>
+  :root { --paper: #eeeae1; --concrete: #d8d3c8; --ink: #15171b; --muted: #5d5a54; --accent: #ff5b2e; }
   * { box-sizing: border-box; margin: 0; }
   html, body { width: 1200px; height: 630px; overflow: hidden; }
   body {
-    background:
-      radial-gradient(900px 500px at 85% 20%, rgba(63, 185, 80, 0.16), transparent 60%),
-      radial-gradient(700px 400px at 0% 100%, rgba(57, 197, 207, 0.08), transparent 60%),
-      #0d1117;
-    color: #e6edf3;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    display: flex; align-items: center; gap: 56px;
-    padding: 0 72px;
+    position: relative; color: var(--ink); font-family: Archivo, system-ui, sans-serif;
+    background: var(--paper); /* plain paper, the same as behind the phone still */
+    display: flex; align-items: center; gap: 60px; padding: 0 70px;
+    border: 6px solid var(--ink);
+  }
+  /* Riso grain, as on the page and in the video. */
+  body::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .16; mix-blend-mode: multiply;
+    background: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   }
   .text { flex: 1; min-width: 0; }
-  .logo { display: flex; align-items: center; gap: 14px; font: 600 30px ui-monospace, "SF Mono", Menlo, monospace; margin-bottom: 36px; }
-  .logo svg { width: 48px; height: 48px; }
-  h1 { font-size: 68px; line-height: 1.04; letter-spacing: -0.03em; margin-bottom: 22px; }
-  h1 span { color: #3fb950; }
-  p { font-size: 27px; line-height: 1.4; color: #8b949e; margin-bottom: 34px; }
-  .cmd {
-    display: inline-flex; gap: 14px; align-items: center;
-    font: 26px ui-monospace, "SF Mono", Menlo, monospace;
-    background: #010409; border: 2px solid #30363d; border-radius: 14px; padding: 16px 24px;
-  }
-  .cmd b { color: #3fb950; font-weight: 400; }
-
-  .phone {
-    flex: none; width: 290px; height: 540px; background: #000; border: 2px solid #3d444d;
-    border-radius: 44px; padding: 12px; box-shadow: 0 30px 80px rgba(0,0,0,.6);
-  }
-  .screen { height: 100%; border-radius: 34px; overflow: hidden; background: #0d1117; display: flex; flex-direction: column; }
-  .bar { display: flex; align-items: center; gap: 8px; padding: 34px 14px 10px; background: #161b22; border-bottom: 1px solid #30363d; font: 13px ui-monospace, Menlo, monospace; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; }
-  .body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 12px 12px 8px; font: 12px/1.5 ui-monospace, "SF Mono", Menlo, monospace; }
-  pre { flex: none; margin: 0 0 10px; font: inherit; white-space: pre-wrap; }
-  .input { flex: none; border-top: 1px solid #484f58; border-bottom: 1px solid #484f58; padding: 6px 2px; white-space: nowrap; overflow: hidden; }
-  .status { flex: none; padding: 5px 2px 0; color: #d2a8ff; font-size: 11px; }
-  .c { color: #d2a8ff; } .d { color: #8b949e; } .g { color: #3fb950; }
-  .keys { display: flex; gap: 4px; padding: 9px 8px; background: #161b22; border-top: 1px solid #30363d; }
-  .keys span { font-size: 11.5px; padding: 7px 6px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; }
+  .logo { display: flex; align-items: center; gap: 14px; font: 900 34px Archivo, sans-serif; letter-spacing: -0.02em; margin-bottom: 30px; }
+  .logo svg { width: 46px; height: 46px; }
+  h1 { font-size: 92px; font-weight: 900; line-height: .9; letter-spacing: -0.045em; text-transform: uppercase; margin-bottom: 26px; }
+  h1 span { display: inline-block; background: var(--ink); color: var(--paper); padding: 0 .12em .05em; margin-top: .06em; }
+  p { font-size: 25px; line-height: 1.35; font-weight: 500; color: var(--muted); margin-bottom: 30px; max-width: 600px; }
+  .cmd { display: inline-block; font: 26px "IBM Plex Mono", monospace; color: var(--paper); background: var(--ink); border: 4px solid var(--ink); box-shadow: 10px 10px 0 var(--accent); padding: 12px 24px; }
+  .cmd b { color: var(--accent); font-weight: 400; }
+  .phone { flex: none; width: 282px; display: block; }
 </style>
 </head>
 <body>
   <div class="text">
     <div class="logo">
-      <svg viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#161b22" stroke="#30363d"/><path d="M8 11l6 5-6 5" stroke="#3fb950" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 22h8" stroke="#e6edf3" stroke-width="3" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 32 32"><rect x="1.5" y="1.5" width="29" height="29" fill="#ff5b2e" stroke="#15171b" stroke-width="3"/><path d="M8 11l6 5-6 5" stroke="#15171b" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 22h8" stroke="#15171b" stroke-width="3" stroke-linecap="round"/></svg>
       tui2web
     </div>
     <h1>Your Terminal,<br><span>on the Web</span></h1>
     <p>Run Claude Code, opencode or any terminal app on your computer. Pick it up from your phone.</p>
     <div class="cmd"><b>$</b> npx tui2web claude</div>
   </div>
-  <div class="phone">
-    <div class="screen">
-      <div class="bar"><span class="dot"></span>claude</div>
-<div class="body">
-<pre><span class="d">&gt;</span> the login page is slow on
-  mobile, can you look into it?
-
-  <span class="g">Bash</span>(npm run bench -- login)
-  <span class="d">⎿ p95 1,840ms</span>
-
-<span class="c">●</span> Each request looks the session
-  up in the database. I'll cache
-  it in memory.
-
-  <span class="g">Update</span>(src/routes/login.ts)
-  <span class="d">⎿ Added 12 lines, removed 3</span>
-
-  <span class="g">Bash</span>(npm test)
-  <span class="d">⎿ 42 passed</span>
-
-<span class="c">●</span> Done. p95 is down to 210ms.</pre>
-        <div class="input"><span class="d">&gt;</span> ship it and open a PR█</div>
-        <div class="status">⏵⏵ accept edits on</div>
-      </div>
-      <div class="keys"><span>Esc</span><span>Tab</span><span>Ctrl</span><span>↑</span><span>↓</span><span>⇧Tab</span><span>^C</span></div>
-    </div>
-  </div>
+  <img class="phone" src="../public/promo/phone.jpg" alt="">
 </body>
 </html>
