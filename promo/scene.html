@@ -372,7 +372,7 @@ window.seek = function (t) {
   $('caption').style.opacity = op;
 
   // End card: the command cycles through other terminal apps, one per beat.
-  const apps = ['claude', 'codex', 'opencode', 'pi', 'gemini', 'aider', 'nvim'];
+  const apps = ['claude', 'codex', 'opencode', 'pi', 'gemini', 'aider', 'amp'];
   $('end-app').textContent = apps[clamp(Math.floor((t - END) / BEAT), 0, apps.length - 1)];
   $('end').style.opacity = ramp(t, END - 0.15, 0.3);
   $('end').style.transform = `scale(${0.97 + 0.03 * ramp(t, END - 0.15, 0.6)})`;
