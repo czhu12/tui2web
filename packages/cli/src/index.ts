@@ -3,7 +3,7 @@ import { StringDecoder } from 'node:string_decoder';
 import { randomBytes } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { hashPassword, loadConfig, promptHidden, saveConfig } from './config.ts';
-import { RelayLink, type LinkState } from './link.ts';
+import { RelayLink, RelayUnreachable, type LinkState } from './link.ts';
 import { DEFAULT_RELAY_PORT, startLocalRelay } from './local-relay.ts';
 import { DEFAULT_HOTKEY, extractHotkey, isNotAKeyPress, parseHotkey, plainLetter, type Hotkey } from './hotkey.ts';
 import { ScreenMirror } from './mirror.ts';
@@ -34,11 +34,13 @@ Usage:
 
 Options:
   --tailscale      Keep the session on your tailnet: this computer runs the relay
-                   and only your Tailscale devices can reach it
+                   and only your Tailscale devices can reach it. If Tailscale
+                   isn't up, the command starts anyway; connect later.
   --relay <url>    Relay server (default: $TUI2WEB_RELAY, config, or ${DEFAULT_RELAY})
   --no-password    Only accept the link's token for this session, not your password
   --no-qr          Don't print a QR code
-  --no-wait        Start the command right away instead of waiting for Enter
+  --no-wait        Start the command right away instead of waiting for Enter,
+                   and connect to the relay in the background
   --disconnected   Start without connecting to the relay; connect later from
                    the link screen (hotkey, then c). The link stays the same.
   --connected      Connect as the session starts (the default; overrides
@@ -136,32 +138,58 @@ Not guessing which one you meant. Unset TUI2WEB_RELAY, or choose for this sessio
   const local = () => ({ cols: process.stdout.columns || 80, rows: process.stdout.rows || 24 });
   const startConnected = opts.connect ?? config.autoconnect ?? true;
   if (!startConnected && !hotkey) exit(2, 'Starting disconnected needs the hotkey, to connect later. Drop --hotkey none, or use --connected.');
+  // Not waiting for Enter: start the command right away and connect in the
+  // background. Without the hotkey a failed connection couldn't be retried,
+  // so then connect first and refuse to start if that fails.
+  const inBackground = startConnected && hotkey !== null && !(opts.wait && process.stdin.isTTY);
   /** Where people open links, e.g. https://tui2web.com. */
   let publicBase = relay.replace(/\/+$/, '');
 
   // Tailscale: this process hosts its own relay, bound to the tailnet address
   // only, so it lives and dies with this session and nothing else can reach it.
-  if (onTailnet) {
-    try {
-      const ts = await tailscaleAddress();
-      const { port } = await startLocalRelay({
-        port: DEFAULT_RELAY_PORT,
-        scan: true,
-        host: ts.ips,
-        publicUrl: (port) => `http://${ts.host}:${port}`,
-        // Logging would draw over the app.
-        log: () => {},
-      });
-      relay = `http://${ts.ip}:${port}`;
-      publicBase = `http://${ts.host}:${port}`;
-    } catch (err) {
-      // Never fall back to another relay: the session was meant to stay on the tailnet.
-      const instead = opts.relay === TAILSCALE ? 'run without --tailscale'
-        : envRelay === TAILSCALE ? 'unset TUI2WEB_RELAY'
-        : 'run `tui2web use public` (or pass --relay <url>)';
-      exit(1, `tui2web: ${(err as Error).message}
+  let onTailnetYet = false;
+  const joinTailnet = async () => {
+    const ts = await tailscaleAddress();
+    const { port } = await startLocalRelay({
+      port: DEFAULT_RELAY_PORT,
+      scan: true,
+      host: ts.ips,
+      publicUrl: (port) => `http://${ts.host}:${port}`,
+      // Logging would draw over the app.
+      log: () => {},
+    });
+    relay = `http://${ts.ip}:${port}`;
+    publicBase = `http://${ts.host}:${port}`;
+    onTailnetYet = true;
+  };
+
+  /**
+   * Why the relay couldn't be reached (Tailscale isn't up, or there's no
+   * internet), and when that was last tried. The session then starts
+   * disconnected, and connecting from the link screen tries again. It never
+   * falls back to another relay.
+   */
+  let unreachable: { reason: string; at: Date } | null = null;
+  const offline = (err: unknown) => {
+    unreachable = { reason: (err as Error).message, at: new Date() };
+    return unreachable;
+  };
+  /** Without the hotkey there'd be no way to connect later, so don't start. */
+  const refuseOffline = (reason: string): never => {
+    if (!onTailnet) exit(1, `tui2web: ${reason}\nTo start now and connect once the relay is reachable, drop --hotkey none.`);
+    const instead = opts.relay === TAILSCALE ? 'run without --tailscale'
+      : envRelay === TAILSCALE ? 'unset TUI2WEB_RELAY'
+      : 'run `tui2web use public` (or pass --relay <url>)';
+    exit(1, `tui2web: ${reason}
 Not starting: Tailscale sessions stay on your tailnet and never fall back to ${DEFAULT_RELAY}.
-To use a public relay instead, ${instead}.`);
+To start now and connect once Tailscale is up, drop --hotkey none. To use a public relay instead, ${instead}.`);
+  };
+  if (onTailnet && !inBackground) {
+    try {
+      await joinTailnet();
+    } catch (err) {
+      const { reason } = offline(err);
+      if (!hotkey) refuseOffline(reason);
     }
   }
 
@@ -193,24 +221,36 @@ To use a public relay instead, ${instead}.`);
   });
 
   const command = opts.command.join(' ');
-  let session: { id: string; url: string };
-  if (startConnected) {
+  /** `url` is null until the link is known: a Tailscale session that isn't on the tailnet yet. */
+  let registered: { id: string; url: string | null } | null = null;
+  const linkFor = (id: string, token: string) => `${publicBase}/session/${id}?token=${token}`;
+  let token = '';
+  if (startConnected && !inBackground && !unreachable) {
     try {
-      session = await link.register({ t: 'hello', command, ...size, password });
+      registered = await link.register({ t: 'hello', command, ...size, password });
     } catch (err) {
-      exit(1, `tui2web: ${(err as Error).message}`);
+      // Offline: start disconnected, as below. Anything else is a real problem.
+      if (!(err instanceof RelayUnreachable)) exit(1, `tui2web: ${(err as Error).message}`);
+      const { reason } = offline(err);
+      if (!hotkey) refuseOffline(reason);
     }
-  } else {
+  }
+  const session = registered ?? (() => {
     // Nothing goes to the relay yet. Make the session's identity here, so the
     // link can be shown (and scanned) now; connecting creates it under these.
+    // Off the tailnet, the link waits for the relay's address and port too.
     const id = randomBytes(16).toString('base64url');
-    const token = randomBytes(32).toString('base64url');
+    token = randomBytes(32).toString('base64url');
     link.prepare({ id, token, agentKey: randomBytes(32).toString('base64url'), command, password }, size);
-    session = { id, url: `${publicBase}/session/${id}?token=${token}` };
-  }
+    return { id, url: onTailnet && !onTailnetYet ? null : linkFor(id, token) };
+  })();
 
-  const banner = () => bannerLines(session.url, opts.qr, password !== null, hotkey, onTailnet, link.state);
-  process.stdout.write(banner().join('\n') + '\n');
+  /** Trying to connect: in the background as the session starts, or after c on the link screen. */
+  let attempting = inBackground;
+  const banner = () => bannerLines(session.url, opts.qr, password !== null, hotkey, onTailnet, attempting ? 'connecting' : link.state, unreachable);
+  // Connecting in the background with no link yet (Tailscale): there's nothing
+  // worth showing, so start the command straight away. The hotkey shows it all.
+  if (!(inBackground && session.url === null)) process.stdout.write(banner().join('\n') + '\n');
 
   // Full-screen programs clear the screen as soon as they start, which would
   // hide the link and QR code, so wait until the user has grabbed it.
@@ -232,7 +272,7 @@ To use a public relay instead, ${instead}.`);
     exit(127, `tui2web: could not start ${file}: ${(err as Error).message}`);
   }
 
-  registerSession({ url: session.url, command: opts.command.join(' '), cwd: process.cwd() });
+  const setRegisteredUrl = registerSession({ url: session.url, command: opts.command.join(' '), cwd: process.cwd() });
 
   // While the link overlay is up, the app keeps running (and the phone keeps
   // working) but its output isn't drawn locally. On close, the local screen is
@@ -244,15 +284,43 @@ To use a public relay instead, ${instead}.`);
 
   const openOverlay = () => {
     overlay = 'on';
-    const state = link.state;
-    const keys = state === 'disconnected' ? 'Press \x1b[1mc\x1b[0m\x1b[2m to connect' : 'Press \x1b[1md\x1b[0m\x1b[2m to disconnect';
-    const lines = [...banner(), '', `\x1b[2m${keys}, or any other key to return to ${file}.\x1b[0m`].slice(0, Math.max(1, local().rows - 1));
+    const keys = attempting ? 'Press any key'
+      : link.state === 'disconnected' ? 'Press \x1b[1mc\x1b[0m\x1b[2m to connect, or any other key'
+      : 'Press \x1b[1md\x1b[0m\x1b[2m to disconnect, or any other key';
+    const lines = [...banner(), '', `\x1b[2m${keys} to return to ${file}.\x1b[0m`].slice(0, Math.max(1, local().rows - 1));
     // Reset attributes and any scroll region so the overlay draws cleanly, and
     // turn off mouse reporting so the link can be selected and copied.
     stdout.write(mouse.disableSequence() + '\x1b[0m\x1b[r\x1b[H\x1b[2J' + lines.join('\r\n'));
   };
   refreshOverlay = () => {
     if (overlay === 'on') openOverlay();
+  };
+
+  /**
+   * c on the link screen: one try at connecting, joining the tailnet first if
+   * need be. If it fails, the session stays disconnected and says why.
+   */
+  const connect = () => {
+    if (attempting || link.state !== 'disconnected') return;
+    attempting = true;
+    void attempt();
+  };
+  const attempt = async () => {
+    refreshOverlay();
+    try {
+      if (onTailnet && !onTailnetYet) {
+        await joinTailnet();
+        link.setRelay(relay);
+        session.url = linkFor(session.id, token);
+        setRegisteredUrl(session.url);
+      }
+      await link.connect();
+      unreachable = null;
+    } catch (err) {
+      offline(err);
+    }
+    attempting = false;
+    refreshOverlay();
   };
 
   const closeOverlay = async () => {
@@ -286,7 +354,7 @@ To use a public relay instead, ${instead}.`);
       // Mouse reports, focus changes and key releases don't close it.
       if (overlay !== 'on' || isNotAKeyPress(text)) return;
       const key = plainLetter(text);
-      if (key === 'c') link.connect();
+      if (key === 'c') connect();
       else if (key === 'd') link.disconnect();
       else void closeOverlay();
       return;
@@ -308,6 +376,7 @@ To use a public relay instead, ${instead}.`);
     term?.write(text);
   });
   stdin.resume();
+  if (inBackground) void attempt();
 
   process.stdout.on('resize', () => {
     if (owner === 'local') applySize(local().cols, local().rows);
@@ -322,7 +391,7 @@ To use a public relay instead, ${instead}.`);
     stdin.pause();
     await link.finish(exitCode);
     const note = link.lostReason ? ` (relay lost the session: ${link.lostReason})` : '';
-    process.stderr.write(`\r\n[tui2web] session ended${note}: ${session.url}\r\n`);
+    process.stderr.write(`\r\n[tui2web] session ended${note}${session.url ? `: ${session.url}` : ''}\r\n`);
     process.exit(exitCode);
   });
 }
@@ -351,15 +420,35 @@ function waitForEnter(command: string): Promise<boolean> {
   });
 }
 
-function bannerLines(url: string, qr: boolean, passwordEnabled: boolean, hotkey: Hotkey, tailnet: boolean, state: LinkState): string[] {
+function bannerLines(url: string | null, qr: boolean, passwordEnabled: boolean, hotkey: Hotkey, tailnet: boolean, state: LinkState, unreachable: { reason: string; at: Date } | null): string[] {
   const bold = (s: string) => `\x1b[1m${s}\x1b[0m`;
   const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
+  const then = hotkey ? ` (${hotkey.label}, then c)` : '';
+  // The last attempt's error, while it's still why the session is disconnected.
+  const failed = state === 'disconnected' && unreachable
+    ? [`\x1b[31m✕ Couldn't connect\x1b[0m: ${unreachable.reason} ${dim(`(tried ${unreachable.at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`)}`]
+    : [];
   const status =
-    state === 'connected' ? '\x1b[32m● Connected\x1b[0m: your phone can open this link.'
-    : state === 'connecting' ? '\x1b[33m◌ Connecting…\x1b[0m'
-    : `\x1b[2m○ Disconnected\x1b[0m: nothing is on the relay. The link works again once you connect${hotkey ? ` (${hotkey.label}, then c)` : ''}.`;
+    state === 'connected' ? `\x1b[32m● Connected\x1b[0m: your phone can open this link${tailnet ? " if it's on your tailnet" : ''}.`
+    : state === 'connecting' ? `\x1b[33m◌ ${url === null ? 'Checking Tailscale' : 'Connecting'}…\x1b[0m`
+    : url === null ? `\x1b[2m○ Disconnected\x1b[0m: the link appears once you connect${then}.`
+    : `\x1b[2m○ Disconnected\x1b[0m: nothing is on the relay. The link works once you connect${then}.`;
+
+  if (url === null) {
+    // Tailscale mode, not on the tailnet yet: there's no relay, so no link.
+    return [
+      '',
+      `${bold('tui2web')} session (not on Tailscale yet):`,
+      '',
+      status,
+      ...failed,
+      '',
+      dim(`Your command runs meanwhile. Tailscale sessions stay on your tailnet and never fall back to ${DEFAULT_RELAY}.`),
+      '',
+    ];
+  }
   const title = state === 'disconnected' ? `${bold('tui2web')} session (disconnected):` : `${bold('tui2web')} session is live:`;
-  const lines = ['', title, '', `  ${bold(url)}`, '', status, ''];
+  const lines = ['', title, '', `  ${bold(url)}`, '', status, ...failed, ''];
   if (qr) qrcode.generate(url, { small: true }, (code) => lines.push(...code.split('\n')));
   if (tailnet) lines.push(dim('Private to your tailnet: open it on a device signed into Tailscale.'));
   lines.push(dim(passwordEnabled ? 'Anyone with this link, or your tui2web password, can control this terminal.' : 'Anyone with this link can control this terminal.'));
@@ -513,10 +602,12 @@ function listCommand() {
   const dim = (s: string) => `\x1b[2m${s}\x1b[0m`;
   for (const s of sessions) {
     const started = new Date(s.startedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    console.log(`${bold(s.command)}  ${dim(`${s.cwd} · started ${started} · pid ${s.pid}`)}\n  ${s.url}\n`);
+    const url = s.url ?? dim('Not on Tailscale yet: connect from its link screen once it is.');
+    console.log(`${bold(s.command)}  ${dim(`${s.cwd} · started ${started} · pid ${s.pid}`)}\n  ${url}\n`);
   }
   // With a single session, show its QR code too, since that's usually why you're here.
-  if (sessions.length === 1) qrcode.generate(sessions[0].url, { small: true }, (code) => console.log(code));
+  const only = sessions.length === 1 ? sessions[0].url : null;
+  if (only) qrcode.generate(only, { small: true }, (code) => console.log(code));
 }
 
 main().catch((err) => exit(1, `tui2web: ${err?.stack ?? err}`));

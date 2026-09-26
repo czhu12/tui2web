@@ -3,7 +3,7 @@
 //   node scripts/viewer.mjs [relay-url]      (CHROME=/path/to/chrome to override)
 import { createRequire } from 'node:module';
 import { chromium } from 'playwright-core';
-import { CLI_ENTRY, CLI_NODE } from './cli-cmd.mjs';
+import { CLI_ENTRY, CLI_NODE, whenLive } from './cli-cmd.mjs';
 const require = createRequire(new URL('../packages/server/package.json', import.meta.url));
 const WebSocket = require('ws');
 const { pty } = await import('../packages/cli/src/pty.ts');
@@ -28,6 +28,7 @@ cli.onData((d) => { out += d; laptop.write(d); });
 laptop.onData((d) => cli.write(d));
 while (!/token=[\w-]+/.test(out)) await sleep(50);
 const url = out.match(/http\S+token=[\w-]+/)[0];
+await whenLive(url);
 
 // Watch size changes as a second viewer.
 const u = new URL(url);

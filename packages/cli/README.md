@@ -38,7 +38,8 @@ tui2web [options] <command> [args...]
 --relay <url>    Relay server (default: $TUI2WEB_RELAY, `tui2web use`, or the public relay)
 --no-password    Only accept the link's token for this session
 --no-qr          Don't print a QR code
---no-wait        Start the command right away instead of waiting for Enter
+--no-wait        Start the command right away instead of waiting for Enter,
+                 and connect to the relay in the background
 --disconnected   Start without connecting to the relay; connect later (Ctrl+\, then c)
 --connected      Connect as the session starts (the default)
 --hotkey <key>   Key that shows the link again (default: ctrl-\; e.g. ctrl-^, ctrl-g, none)

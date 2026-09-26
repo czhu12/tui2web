@@ -55,9 +55,11 @@ CLI options: `--tailscale`, `--relay <url>` (or `TUI2WEB_RELAY`), `--no-password
 
 On the Ctrl+\\ screen, `d` disconnects the session from the relay and `c` connects it again. Disconnecting sends `pause`: the relay closes phones with code 4410 and forgets the session, keeping only its id for a "Disconnected" page. Connecting restores it under the same id and token (the relay-restart path), so the link never changes. `--disconnected` (or `tui2web autoconnect off`) starts without contacting the relay: the CLI makes the id and token itself, so the link is shown up front.
 
+If the relay can't be reached when a session starts (no internet, or Tailscale isn't up), the command starts anyway, disconnected, and the link screen says why. `c` there makes one attempt to connect and shows the error again if it fails. A public relay's link is shown up front. A Tailscale session's link appears once it connects, since it needs the tailnet address and the port. Once connected, dropped connections reconnect on their own as before. With `--no-wait` the command doesn't wait for the relay at all: it starts at once and the connection is made in the background, so a Tailscale session's link is on the Ctrl+\\ screen (or `tui2web ls`) rather than printed at the start.
+
 ## Running your own relay
 
-With Tailscale, `tui2web --tailscale claude` needs no setup: each session runs its own relay in the CLI process, bound to the machine's Tailscale addresses (IPv4 and IPv6, since MagicDNS names resolve to both), on the first free port from 8787. `tui2web use tailscale` makes that the default. `node scripts/tailscale.mjs` tests it with a fake `tailscale` binary.
+With Tailscale, `tui2web --tailscale claude` needs no setup: each session runs its own relay in the CLI process, bound to the machine's Tailscale addresses (IPv4 and IPv6, since MagicDNS names resolve to both), on the first free port from 8787. `tui2web use tailscale` makes that the default. If Tailscale isn't up, the session starts disconnected (see below); it never falls back to the public relay. `node scripts/tailscale.mjs` tests it with a fake `tailscale` binary.
 
 Otherwise, `tui2web relay` starts one from the CLI. [docs/self-hosting.md](docs/self-hosting.md) covers Tailscale, running a relay on your LAN, and Docker on a server.
 

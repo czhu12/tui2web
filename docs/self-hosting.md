@@ -15,6 +15,8 @@ tui2web --tailscale claude
 
 That's it: there's no separate relay to start. The session runs its own relay inside the `tui2web` process, listening only on your computer's Tailscale addresses. The link uses your computer's MagicDNS name, like `http://your-computer.tailnet-name.ts.net:8787/session/…`, or its `100.x.y.z` address if MagicDNS is off.
 
+If Tailscale is off or signed out when you start, your command runs anyway, without a link. Turn Tailscale on, then press Ctrl+\ and `c`: the session starts its relay and shows the link. It never uses the public relay instead.
+
 To make it the default, so plain `tui2web claude` stays on your tailnet:
 
 ```

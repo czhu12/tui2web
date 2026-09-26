@@ -2,7 +2,7 @@
 // and plays the part of the phone (HTTP auth flow + viewer WebSocket).
 //   node scripts/e2e.mjs [relay-url]
 import { createRequire } from 'node:module';
-import { CLI_ENTRY, CLI_NODE } from './cli-cmd.mjs';
+import { CLI_ENTRY, CLI_NODE, whenLive } from './cli-cmd.mjs';
 const require = createRequire(new URL('../packages/cli/package.json', import.meta.url));
 const { pty } = await import('../packages/cli/src/pty.ts');
 const WebSocket = require('ws');
@@ -32,6 +32,7 @@ const url = await until(() => cliOut.match(/https?:\/\/\S+\/session\/\S+\?token=
 });
 // Wait for bash's first prompt, so the snapshot has something in it.
 await until(() => /\$ $/.test(cliOut));
+await whenLive(url);
 check('CLI registers and prints a session URL', true, url.replace(/token=.*/, 'token=…'));
 const u = new URL(url);
 const base = `${u.origin}${u.pathname}`;

@@ -2,7 +2,7 @@
 // Uses scripts/fake-tailscale.mjs, whose "tailnet" is loopback, so no real
 // Tailscale is needed.
 //   node scripts/tailscale.mjs
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -36,7 +36,21 @@ function start(args, extraEnv = {}) {
   s.exited = new Promise((r) => s.cli.onExit((e) => r(e.exitCode)));
   return s;
 }
-const linkOf = (s) => until(() => s.out.match(/http:\/\/\S+\/session\/\S+\?token=[\w-]+/)?.[0]);
+const LINK = /http:\/\/\S+\/session\/\S+\?token=[\w-]+/;
+const printedLink = (s) => until(() => s.out.match(LINK)?.[0]);
+/**
+ * The link, from the link screen (hotkey) once connected: with --no-wait a
+ * Tailscale session connects in the background, so it isn't known up front.
+ */
+async function linkOf(s) {
+  await until(() => /\$ $/.test(s.out)); // bash is up, so the CLI is reading keys
+  const mark = s.out.length;
+  s.cli.write('\x1c');
+  const link = await until(() => s.out.slice(mark).includes('● Connected') && s.out.slice(mark).match(LINK)?.[0]);
+  s.cli.write('z'); // closes the link screen
+  await sleep(200);
+  return link;
+}
 
 /** Logs in with the link and returns what a viewer sees after typing `echo <word>`. */
 async function roundTrip(link, word) {
@@ -69,7 +83,8 @@ check('sessions print tailnet links', !!linkA && !!linkB, `${linkA?.replace(/tok
 const [ua, ub] = [new URL(linkA), new URL(linkB)];
 check('links use the MagicDNS name', ua.hostname === 'localhost' && ub.hostname === 'localhost');
 check('each session gets its own relay port', ua.port !== ub.port && Number(ua.port) >= 8787 && Number(ub.port) >= 8787, `${ua.port} vs ${ub.port}`);
-check('banner says the link is tailnet-only', a.out.includes('Private to your tailnet'));
+check('link screen says the link is tailnet-only', a.out.includes('Private to your tailnet'));
+check("  and that a phone can open it if it's on the tailnet", a.out.includes("your phone can open this link if it's on your tailnet"));
 let rt = await roundTrip(linkA, 'hello-from-a');
 check('phone can drive session A', rt.ok, rt.why);
 rt = await roundTrip(linkB, 'hello-from-b');
@@ -87,28 +102,70 @@ b.cli.write('exit\r');
 check('session B exits cleanly', (await Promise.race([b.exited, sleep(5000).then(() => 'timeout')])) === 0);
 
 // ---- 3. Errors say what to do ------------------------------------------------------
+// With a hotkey the session starts anyway (see 3b), so these use --hotkey none.
 const cli = (args, extraEnv = {}) => spawnSync(CLI_NODE, [CLI_ENTRY, ...args], { env: { ...env, ...extraEnv }, encoding: 'utf8', timeout: 15000 });
-let res = cli(['--tailscale', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'Stopped' });
+let res = cli(['--tailscale', '--hotkey', 'none', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'Stopped' });
 check('stopped Tailscale is reported', res.status === 1 && res.stderr.includes('Tailscale is stopped'), res.stderr.trim());
-res = cli(['--tailscale', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'NeedsLogin' });
+res = cli(['--tailscale', '--hotkey', 'none', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'NeedsLogin' });
 check('signed-out Tailscale is reported', res.status === 1 && res.stderr.includes('tailscale up'), res.stderr.trim());
-res = cli(['--tailscale', '--no-wait', 'true'], { TUI2WEB_TAILSCALE_BIN: '/nonexistent/tailscale' });
+res = cli(['--tailscale', '--hotkey', 'none', '--no-wait', 'true'], { TUI2WEB_TAILSCALE_BIN: '/nonexistent/tailscale' });
 check('missing Tailscale is reported', res.status === 1 && res.stderr.includes('not installed'), res.stderr.trim());
-res = cli(['--tailscale', '--no-wait', 'true'], { FAKE_TAILSCALE_DOWN: '1' });
+res = cli(['--tailscale', '--hotkey', 'none', '--no-wait', 'true'], { FAKE_TAILSCALE_DOWN: '1' });
 check('a daemon that isn\'t running is reported', res.status === 1 && res.stderr.includes("doesn't appear to be running"), res.stderr.trim());
-res = cli(['--tailscale', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'Stopped', FAKE_TAILSCALE_EXIT: '1' });
+res = cli(['--tailscale', '--hotkey', 'none', '--no-wait', 'true'], { FAKE_TAILSCALE_STATE: 'Stopped', FAKE_TAILSCALE_EXIT: '1' });
 check('status JSON on a failing exit still names the state', res.status === 1 && res.stderr.includes('Tailscale is stopped'), res.stderr.trim());
 
 // ---- 3a. Never falls back to another relay -------------------------------------------
 // Every refusal says so and starts nothing: no link, and the command never runs.
 const noSession = (r) => !/\/session\//.test(r.stdout) && !r.stdout.includes('RAN');
-res = cli(['--tailscale', '--no-wait', 'sh', '-c', 'echo RAN'], { FAKE_TAILSCALE_STATE: 'Stopped' });
+res = cli(['--tailscale', '--hotkey', 'none', '--no-wait', 'sh', '-c', 'echo RAN'], { FAKE_TAILSCALE_STATE: 'Stopped' });
 check('refusal says it won\'t fall back', res.stderr.includes('never fall back to https://tui2web.com') && res.stderr.includes('run without --tailscale'), res.stderr.trim());
+check('  and how to connect later instead', res.stderr.includes('drop --hotkey none'), res.stderr.trim());
 check('  and starts nothing', noSession(res), res.stdout.slice(0, 120));
 res = cli(['--tailscale', '--relay', 'https://tui2web.com', '--no-wait', 'true']);
 check('--tailscale with --relay is refused', res.status === 2 && res.stderr.includes('Pick one'), res.stderr.trim());
 res = cli(['--relay', 'https://tui2web.com', '--tailscale', '--no-wait', 'true']);
 check('  in either order', res.status === 2 && res.stderr.includes('Pick one'), res.stderr.trim());
+
+// ---- 3b. Off the tailnet: the command starts, and connects once Tailscale is up ------
+const stateFile = join(HOME, 'fake-tailscale-state');
+writeFileSync(stateFile, 'Stopped');
+const g = start(['--tailscale'], { FAKE_TAILSCALE_STATE_FILE: stateFile });
+await until(() => /\$ $/.test(g.out)); // bash is up
+check('off the tailnet, the command starts straight away, printing nothing first', !g.out.includes('tui2web'), JSON.stringify(g.out.slice(0, 80)));
+g.cli.write('\x1c');
+await until(() => g.out.includes('to connect, or any other key'));
+check('  and the link screen says why', g.out.includes('not on Tailscale yet') && g.out.includes("Couldn't connect") && g.out.includes('Tailscale is stopped'));
+check('  with no link, and no public relay', !/\/session\//.test(g.out) && !g.out.includes('session is live'));
+const lsOut = () => execFileSync(CLI_NODE, [CLI_ENTRY, 'ls'], { env }).toString();
+check('  tui2web ls says it isn\'t on Tailscale yet', lsOut().includes('Not on Tailscale yet'));
+let mark = g.out.length;
+g.cli.write('c'); // still stopped
+await until(() => g.out.slice(mark).includes('Checking Tailscale') && g.out.slice(mark).includes("Couldn't connect"));
+check('c while Tailscale is still down checks again, and stays off', g.out.slice(mark).includes('Tailscale is stopped') && !/\/session\//.test(g.out));
+writeFileSync(stateFile, 'Running');
+mark = g.out.length;
+g.cli.write('c');
+const linkG = await until(() => g.out.slice(mark).match(/http:\/\/\S+\/session\/\S+\?token=[\w-]+/)?.[0]);
+await until(() => g.out.slice(mark).includes('● Connected'));
+check('c once Tailscale is up shows a tailnet link', !!linkG && new URL(linkG).hostname === 'localhost', linkG?.replace(/token=.*/, '…'));
+rt = linkG ? await roundTrip(linkG, 'joined-later') : { ok: false, why: 'no link' };
+check('  and a phone can drive it', rt.ok, rt.why);
+check('  tui2web ls shows the link now', !!linkG && lsOut().includes(linkG));
+g.cli.write('z');
+await sleep(300);
+g.cli.write('exit\r');
+check('  and it exits cleanly', (await Promise.race([g.exited, sleep(5000).then(() => 'timeout')])) === 0);
+
+// ---- 3c. --no-wait doesn't wait for Tailscale ----------------------------------------
+const slow = start(['--tailscale'], { FAKE_TAILSCALE_DELAY: '4000' });
+const t0 = Date.now();
+await until(() => /\$ $/.test(slow.out));
+check('--no-wait starts the command before Tailscale answers', Date.now() - t0 < 3000, `${Date.now() - t0} ms`);
+const linkSlow = await linkOf(slow);
+check('  and connects in the background once it does', !!linkSlow, linkSlow?.replace(/token=.*/, '…'));
+slow.cli.write('exit\r');
+await slow.exited;
 
 // ---- 4. MagicDNS off falls back to the IP ------------------------------------------
 const c = start(['--tailscale'], { FAKE_TAILSCALE_MAGICDNS: '0' });
@@ -131,7 +188,7 @@ blocker.close();
 
 // ---- 4b. Starting disconnected: the link is known up front and works after connecting
 const e = start(['--tailscale', '--disconnected']);
-const linkE = await linkOf(e);
+const linkE = await printedLink(e);
 check('--disconnected on the tailnet shows a MagicDNS link up front', !!linkE && new URL(linkE).hostname === 'localhost', linkE?.replace(/token=.*/, '…'));
 check('  not live before connecting', (await fetch(linkE, { redirect: 'manual' })).status === 404);
 await until(() => /\$ $/.test(e.out)); // bash is up, so the CLI is reading keys
@@ -156,11 +213,11 @@ check('plain tui2web then runs on the tailnet', !!linkD && new URL(linkD).hostna
 d.cli.write('exit\r');
 await d.exited;
 check('use shows the current choice', execFileSync(CLI_NODE, [CLI_ENTRY, 'use'], { env }).toString().startsWith('tailscale'));
-res = cli(['--no-wait', 'sh', '-c', 'echo RAN'], { FAKE_TAILSCALE_STATE: 'NeedsLogin' });
-check('default tailnet with Tailscale signed out is refused', res.status === 1 && res.stderr.includes('tui2web use public') && noSession(res), res.stderr.trim());
+res = cli(['--hotkey', 'none', '--no-wait', 'sh', '-c', 'echo RAN'], { FAKE_TAILSCALE_STATE: 'NeedsLogin' });
+check('default tailnet with Tailscale signed out (and no hotkey) is refused', res.status === 1 && res.stderr.includes('tui2web use public') && noSession(res), res.stderr.trim());
 res = cli(['--no-wait', 'sh', '-c', 'echo RAN'], { TUI2WEB_RELAY: 'https://tui2web.com' });
 check('$TUI2WEB_RELAY doesn\'t silently beat use tailscale', res.status === 2 && res.stderr.includes('$TUI2WEB_RELAY is set') && noSession(res), res.stderr.trim());
-res = cli(['--no-wait', '--tailscale', 'sh', '-c', 'echo RAN'], { TUI2WEB_RELAY: 'https://tui2web.com', FAKE_TAILSCALE_STATE: 'Stopped' });
+res = cli(['--no-wait', '--tailscale', '--hotkey', 'none', 'sh', '-c', 'echo RAN'], { TUI2WEB_RELAY: 'https://tui2web.com', FAKE_TAILSCALE_STATE: 'Stopped' });
 check('  --tailscale still decides (and is refused while stopped)', res.status === 1 && res.stderr.includes('Tailscale is stopped'), res.stderr.trim());
 execFileSync(CLI_NODE, [CLI_ENTRY, 'use', 'https://relay.example.com/'], { env });
 check('use <url> saves the URL', config().relay === 'https://relay.example.com');

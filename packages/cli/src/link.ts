@@ -8,6 +8,12 @@ type SessionInfo = { id: string; agentKey: string; token: string; command: strin
 const MAX_BACKLOG_BYTES = 1024 * 1024;
 const REGISTER_TIMEOUT_MS = 10_000;
 
+/** The relay couldn't be reached at all (offline, or it's down), as opposed to refusing the session. */
+export class RelayUnreachable extends Error {}
+
+/** Settles the first attempt of connect(). */
+type Attempt = { resolve(): void; reject(err: Error): void };
+
 export type LinkHandlers = {
   onInput(data: Buffer): void;
   onResize(cols: number, rows: number): void;
@@ -46,8 +52,13 @@ export class RelayLink {
   private retries = 0;
 
   constructor(relay: string, handlers: LinkHandlers) {
-    this.agentUrl = relay.replace(/^http/, 'ws').replace(/\/+$/, '') + '/agent';
+    this.agentUrl = agentUrl(relay);
     this.handlers = handlers;
+  }
+
+  /** Points a link that hasn't connected yet at its relay, e.g. once Tailscale is up. */
+  setRelay(relay: string) {
+    this.agentUrl = agentUrl(relay);
   }
 
   /** Opens the first connection and creates the session. Resolves with the share URL. */
@@ -57,13 +68,13 @@ export class RelayLink {
       const ws = new WebSocket(this.agentUrl);
       const timer = setTimeout(() => {
         ws.terminate();
-        reject(new Error(`timed out connecting to ${this.agentUrl}`));
+        reject(new RelayUnreachable(`timed out connecting to ${this.agentUrl}`));
       }, REGISTER_TIMEOUT_MS);
 
       ws.on('open', () => ws.send(JSON.stringify(hello)));
       ws.on('error', (err) => {
         clearTimeout(timer);
-        reject(new Error(`could not reach relay at ${this.agentUrl} (${err.message})`));
+        reject(new RelayUnreachable(`could not reach relay at ${this.agentUrl} (${errorText(err)})`));
       });
       ws.once('message', (raw) => {
         clearTimeout(timer);
@@ -113,13 +124,19 @@ export class RelayLink {
     this.handlers.onState?.();
   }
 
-  /** Puts the session back on the relay under the same id and token. */
-  connect() {
-    if (!this.paused || this.finished) return;
+  /**
+   * Puts the session back on the relay under the same id and token. Makes one
+   * attempt: resolves once connected, or rejects and stays disconnected if the
+   * relay can't be reached. (Once connected, drops reconnect on their own.)
+   */
+  connect(): Promise<void> {
+    if (!this.paused || this.finished) return Promise.resolve();
     this.paused = false;
     this.retries = 0;
-    this.resume();
-    this.handlers.onState?.();
+    return new Promise((resolve, reject) => {
+      this.resume({ resolve, reject });
+      this.handlers.onState?.();
+    });
   }
 
   sendOutput(data: Buffer) {
@@ -195,32 +212,45 @@ export class RelayLink {
     setTimeout(() => this.resume(), delay).unref();
   }
 
-  private resume() {
-    if (this.finished || this.paused || !this.session || this.pending) return;
+  /** `attempt`: this is connect()'s one try, so report failure instead of retrying. */
+  private resume(attempt?: Attempt) {
+    if (this.finished || this.paused || !this.session || this.pending) return attempt?.resolve();
     const { id, agentKey, token, command, password } = this.session;
     const ws = new WebSocket(this.agentUrl);
     this.pending = ws;
     let settled = false;
-    const retry = () => {
+    const timer = attempt && setTimeout(() => retry(new Error('timed out')), REGISTER_TIMEOUT_MS);
+    const retry = (err?: Error) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       if (this.pending === ws) this.pending = null;
       ws.terminate();
+      if (attempt) {
+        if (this.paused) return attempt.resolve(); // disconnected meanwhile, on purpose
+        this.paused = true;
+        this.handlers.onState?.();
+        return attempt.reject(new RelayUnreachable(`could not reach relay at ${this.agentUrl} (${err ? errorText(err) : 'connection closed'})`));
+      }
       if (!this.paused) this.scheduleReconnect();
     };
     ws.on('open', () =>
       ws.send(JSON.stringify({ t: 'resume', id, agentKey, ...this.size, restore: { token, command, password } } satisfies AgentToRelay)),
     );
-    ws.on('error', retry);
-    ws.on('close', retry);
+    const onError = (err: Error) => retry(err);
+    const onClose = () => retry();
+    ws.on('error', onError);
+    ws.on('close', onClose);
     ws.once('message', (raw) => {
       const msg = parse(raw);
       if (this.pending !== ws) return; // disconnected meanwhile
       this.pending = null;
+      clearTimeout(timer);
       if (msg?.t === 'resumed') {
         settled = true;
-        ws.off('error', retry);
-        ws.off('close', retry);
+        ws.off('error', onError);
+        ws.off('close', onClose);
+        attempt?.resolve();
         if (!msg.restored) return this.adopt(ws, []);
         // The relay starts from a blank screen. Repaint it from our mirror;
         // the snapshot already includes everything in the backlog, so drop it.
@@ -241,10 +271,20 @@ export class RelayLink {
         this.finished = true;
         this.lostReason = msg.message;
         ws.terminate();
+        attempt?.reject(new Error(`the relay refused the session: ${msg.message}`));
         this.handlers.onState?.();
       } else retry();
     });
   }
+}
+
+/** Offline errors often have no message, only a code (e.g. ENOTFOUND from DNS). */
+function errorText(err: Error): string {
+  return err.message || (err as NodeJS.ErrnoException).code || 'connection failed';
+}
+
+function agentUrl(relay: string): string {
+  return relay.replace(/^http/, 'ws').replace(/\/+$/, '') + '/agent';
 }
 
 function parse(raw: WebSocket.RawData): RelayToAgent | null {

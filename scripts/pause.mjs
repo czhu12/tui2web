@@ -175,6 +175,62 @@ check('autoconnect on clears it', config().autoconnect === undefined);
 const bad = cli(['--disconnected', '--hotkey', 'none', 'true']);
 check('--disconnected without a hotkey is refused', bad.status === 2 && bad.stderr.includes('needs the hotkey'), bad.stderr.trim());
 
+// ---- 5. Relay unreachable at start (offline): starts disconnected, c tries again -------
+const OFFLINE = 'http://localhost:8794'; // nothing listens here until the relay "comes back"
+s = run(['--relay', OFFLINE]);
+await until(() => /Press .*Enter/.test(s.raw));
+const link5 = await linkOf(s);
+check('unreachable relay: starts anyway, disconnected, with the link', !!link5 && s.raw.includes('(disconnected)') && link5.startsWith(OFFLINE));
+check('  and says why', s.raw.includes("Couldn't connect") && s.raw.includes('could not reach relay'), s.raw.match(/Couldn't connect.*/)?.[0]);
+s.cli.write('\r');
+await s.shows('FAKE-TUI count=0');
+s.cli.write('\x1c');
+await s.shows('Press c to connect');
+let mark = s.raw.length;
+s.cli.write('c'); // still unreachable
+await until(() => s.raw.slice(mark).includes("Couldn't connect"));
+check('c while still offline tries once and stays disconnected', (await s.text()).includes('○ Disconnected') && (await s.text()).includes('Press c to connect'));
+const relay5 = spawn(process.execPath, ['packages/server/src/index.ts'], { env: { ...process.env, PORT: '8794' }, stdio: ['ignore', 'pipe', 'inherit'] });
+let relay5Log = '';
+relay5.stdout.on('data', (d) => (relay5Log += d));
+await until(() => relay5Log.includes('listening'));
+s.cli.write('c');
+check('c once the relay is reachable connects', !!(await s.shows('● Connected')));
+check('  and the error is gone', !(await s.text()).includes("Couldn't connect"));
+r = await fetch(link5, { redirect: 'manual' });
+check('  the link shown at start works', r.status === 303, String(r.status));
+ph = phone(link5, r.headers.get('set-cookie').split(';')[0]);
+check('  phone sees the app', !!(await until(() => ph.snapshot?.includes('FAKE-TUI'))));
+ph.ws.close();
+s.cli.write('z');
+await sleep(300);
+s.cli.write('q');
+check('  exits cleanly', (await s.exited) === 0);
+relay5.kill();
+const offlineNoHotkey = cli(['--relay', OFFLINE, '--hotkey', 'none', '--no-wait', 'sh', '-c', 'echo RAN']);
+check('unreachable relay without a hotkey is refused', offlineNoHotkey.status === 1 && offlineNoHotkey.stderr.includes('could not reach relay') && offlineNoHotkey.stderr.includes('drop --hotkey none') && !offlineNoHotkey.stdout.includes('RAN'), offlineNoHotkey.stderr.trim());
+
+// ---- 6. --no-wait doesn't wait for the relay ------------------------------------------
+// A relay that accepts the connection and never answers: the worst case, a hang.
+const { createServer } = await import('node:net');
+const held = [];
+const hung = createServer((sock) => held.push(sock));
+await new Promise((r) => hung.listen(8795, r));
+const t0 = Date.now();
+s = run(['--relay', 'http://localhost:8795', '--no-wait']);
+await s.shows('FAKE-TUI count=0');
+check('--no-wait starts the app before the relay answers', Date.now() - t0 < 3000, `${Date.now() - t0} ms`);
+check('  its link is printed up front', !!(await linkOf(s)));
+s.cli.write('\x1c');
+check('  link screen shows it connecting meanwhile', !!(await s.shows('◌ Connecting')));
+check('  and gives up after the timeout, saying why', !!(await s.shows("Couldn't connect", 15000)) && (await s.text()).includes('timed out'));
+s.cli.write('z');
+await sleep(300);
+s.cli.write('q');
+await s.exited;
+for (const sock of held) sock.destroy();
+hung.close();
+
 relay.kill();
 const failed = results.filter((ok) => !ok).length;
 console.log(failed ? `\n${failed} FAILED` : `\n${results.length}/${results.length} passed`);

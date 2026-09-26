@@ -3,7 +3,7 @@
 //   node scripts/restart.mjs
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { CLI_ENTRY, CLI_NODE } from './cli-cmd.mjs';
+import { CLI_ENTRY, CLI_NODE, whenLive } from './cli-cmd.mjs';
 const require = createRequire(new URL('../packages/server/package.json', import.meta.url));
 const WebSocket = require('ws');
 const { pty } = await import('../packages/cli/src/pty.ts');
@@ -45,6 +45,7 @@ let cliExitCode = null;
 cli.onExit(({ exitCode }) => (cliExitCode = exitCode));
 
 const url = await until(() => cliOut.match(/http\S+token=[\w-]+/)?.[0]);
+await whenLive(url);
 const u = new URL(url);
 const base = `${u.origin}${u.pathname}`;
 const r = await fetch(url, { redirect: 'manual' });

@@ -8,14 +8,17 @@ import { CONFIG_DIR } from './config.ts';
  */
 const SESSIONS_DIR = join(CONFIG_DIR, 'sessions');
 
-export type SessionRecord = { pid: number; url: string; command: string; cwd: string; startedAt: string };
+/** `url` is null until the link is known (Tailscale mode, before Tailscale is up). */
+export type SessionRecord = { pid: number; url: string | null; command: string; cwd: string; startedAt: string };
 
-export function registerSession(record: Omit<SessionRecord, 'pid' | 'startedAt'>): () => void {
+/** Records this session. Returns a function that updates its link. */
+export function registerSession(record: Omit<SessionRecord, 'pid' | 'startedAt'>): (url: string) => void {
   mkdirSync(SESSIONS_DIR, { recursive: true, mode: 0o700 });
   const file = join(SESSIONS_DIR, `${process.pid}.json`);
   const full: SessionRecord = { pid: process.pid, startedAt: new Date().toISOString(), ...record };
   // The URL contains the session token, so keep the file private.
-  writeFileSync(file, JSON.stringify(full, null, 2) + '\n', { mode: 0o600 });
+  const write = () => writeFileSync(file, JSON.stringify(full, null, 2) + '\n', { mode: 0o600 });
+  write();
   let removed = false;
   const remove = () => {
     if (removed) return;
@@ -25,7 +28,10 @@ export function registerSession(record: Omit<SessionRecord, 'pid' | 'startedAt'>
     } catch {}
   };
   process.on('exit', remove);
-  return remove;
+  return (url) => {
+    full.url = url;
+    if (!removed) write();
+  };
 }
 
 /** Live sessions, newest first. Files left behind by crashed processes are cleaned up. */
