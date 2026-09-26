@@ -151,6 +151,8 @@
       }
       * { box-sizing: border-box; }
       html { -webkit-text-size-adjust: 100%; }
+      /* Clip on html too: iOS Safari doesn't carry body's overflow to the page. */
+      html { overflow-x: clip; }
       body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.6 var(--sans); overflow-x: clip; }
       /* Riso grain over everything, like the video's print texture. */
       body::after {
@@ -187,7 +189,7 @@
 
       /* ---- hero ---- */
       header { padding-top: 72px; }
-      h1 { font-size: clamp(52px, 11vw, 112px); line-height: .9; font-weight: 900; letter-spacing: -0.045em; text-transform: uppercase; margin: 0 0 32px; }
+      h1 { font-size: min(clamp(52px, 11vw, 112px), calc((100vw - 48px) / 6.7)); line-height: .9; font-weight: 900; letter-spacing: -0.045em; text-transform: uppercase; margin: 0 0 32px; }
       h1 span { display: inline-block; background: var(--ink); color: var(--paper); padding: 0 .12em .04em; margin-top: .06em; }
       header > p:first-of-type { font-size: 21px; }
       h2 { font-size: clamp(36px, 6vw, 60px); line-height: .95; font-weight: 900; letter-spacing: -0.035em; text-transform: uppercase; margin: 0 0 28px; counter-increment: section; }
@@ -266,6 +268,10 @@
       @media (max-width: 640px) {
         body { font-size: 17px; }
         .hide-sm, .cmd .label { display: none; }
+        body > nav { font-size: 12px; }
+        body > nav .home { font-size: 19px; }
+        body > nav .home::before { width: 22px; height: 22px; margin-right: 8px; }
+        body > nav div a { padding: 16px 12px; }
         header { padding-top: 40px; }
         section::before { margin-top: 64px; margin-bottom: 40px; }
         table { box-shadow: 5px 5px 0 var(--ink); }
