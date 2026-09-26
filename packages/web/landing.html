@@ -179,7 +179,8 @@
       body > nav { display: flex; justify-content: space-between; align-items: stretch; border-bottom: var(--edge); padding: 0 var(--gutter); font: 600 14px var(--mono); text-transform: uppercase; letter-spacing: .04em; }
       body > nav a { text-decoration: none; display: flex; align-items: center; padding: 18px 0; }
       body > nav .home { font: 900 22px var(--sans); text-transform: none; letter-spacing: -0.02em; }
-      body > nav .home::before { content: ""; width: 14px; height: 14px; margin-right: 10px; background: var(--accent); border: 2px solid var(--ink); }
+      /* The favicon itself: the orange tile with a >_ prompt. */
+      body > nav .home::before { content: ""; width: 26px; height: 26px; margin-right: 10px; background: url(/favicon.svg) center / contain no-repeat; }
       body > nav div { display: flex; }
       body > nav div a { padding: 18px 18px; border-left: var(--edge); }
       body > nav div a:last-child { border-right: var(--edge); }
